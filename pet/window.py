@@ -87,8 +87,14 @@ class PetWindow(QWidget):
                 self._maybe_chase_cursor()
 
             dx, dy = self.state.tick()
+
+            if self.state.playtime_enter and not self.state.playtime.active:
+                self._enter_playtime()
+
             if self.state.playtime.active:
-                self.state.playtime.tick()
+                if self.state.playtime.tick():
+                    self._exit_playtime()
+                    self.state.on_playtime_finished()
             elif dx or dy:
                 self._move_within_screen(dx, dy)
             self._refresh_sprite()
@@ -112,7 +118,8 @@ class PetWindow(QWidget):
         self._chase_cooldown = self.CHASE_COOLDOWN_TICKS
 
     def _screen_geometry(self):
-        screen = QGuiApplication.screenAt(self.pos() + QPoint(CANVAS // 2, CANVAS // 2))
+        center = QPoint(self.width() // 2, self.height() // 2)
+        screen = QGuiApplication.screenAt(self.pos() + center)
         if screen is None:
             screen = QGuiApplication.primaryScreen()
         return screen.availableGeometry() if screen is not None else None
@@ -197,6 +204,14 @@ class PetWindow(QWidget):
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
+            if self.state.playtime.active:
+                self._exit_playtime()
+                self.state.stop_playtime()
+                self.state.pet()
+                self._refresh_sprite()
+                event.accept()
+                return
+
             grid_x, grid_y = self._grid_from_event(event)
             collected = self.state.drops.try_collect(grid_x, grid_y)
             if collected is not None:
@@ -240,6 +255,8 @@ class PetWindow(QWidget):
 
     def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
+            if self.state.playtime.active:
+                self._exit_playtime()
             self.state.pet()
             self._refresh_sprite()
             event.accept()
@@ -263,16 +280,6 @@ class PetWindow(QWidget):
 
         menu.addSeparator()
 
-        if self.state.playtime.active:
-            play_action = QAction("停下来", self)
-            play_action.triggered.connect(self._stop_playtime)
-        else:
-            play_action = QAction("让它自己玩", self)
-            play_action.triggered.connect(self._start_playtime)
-        menu.addAction(play_action)
-
-        menu.addSeparator()
-
         pause_action = QAction("继续动画" if self.state.paused else "暂停动画", self)
         pause_action.triggered.connect(self._toggle_pause)
         menu.addAction(pause_action)
@@ -291,7 +298,7 @@ class PetWindow(QWidget):
         self.state.set_variant(variant)
         self._refresh_sprite()
 
-    def _start_playtime(self) -> None:
+    def _enter_playtime(self) -> None:
         if self.state.playtime.active:
             return
         self._compact_geometry = self.frameGeometry()
@@ -307,10 +314,9 @@ class PetWindow(QWidget):
             self.move(x, y)
         self._refresh_sprite()
 
-    def _stop_playtime(self) -> None:
-        if not self.state.playtime.active:
+    def _exit_playtime(self) -> None:
+        if not self.state.playtime.active and self.width() == CANVAS:
             return
-        self.state.stop_playtime()
         self.setFixedSize(CANVAS, CANVAS)
         self._label.setGeometry(0, 0, CANVAS, CANVAS)
         self.move(self._compact_geometry.topLeft())
@@ -321,7 +327,8 @@ class PetWindow(QWidget):
 
     def _reset_position(self) -> None:
         if self.state.playtime.active:
-            self._stop_playtime()
+            self._exit_playtime()
+            self.state.stop_playtime()
         self.state.reset()
         screen = QGuiApplication.primaryScreen()
         if screen is not None:

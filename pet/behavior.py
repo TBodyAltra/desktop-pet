@@ -23,6 +23,8 @@ GRAVITY = 1.4
 AIR_FRICTION = 0.99
 BOUNCE_DAMPING = 0.55
 FLING_MIN_SPEED = 6.0
+BOREDOM_THRESHOLD = 320
+PLAY_COOLDOWN = 480
 
 
 @dataclass
@@ -46,6 +48,9 @@ class BehaviorState:
     blink_next: int = field(default_factory=lambda: random.randint(20, 60))
     drops: DropManager = field(default_factory=DropManager)
     playtime: PlaySession = field(default_factory=PlaySession)
+    boredom_ticks: int = 0
+    play_cooldown: int = field(default_factory=lambda: random.randint(120, 240))
+    playtime_enter: bool = False
 
     def pose(self) -> Pose:
         if self.playtime.active:
@@ -65,6 +70,8 @@ class BehaviorState:
         return Pose.IDLE
 
     def fling(self, vx: float, vy: float) -> None:
+        self.stop_playtime()
+        self.boredom_ticks = 0
         self.flying = True
         self.vx = vx
         self.vy = vy
@@ -87,6 +94,8 @@ class BehaviorState:
         """Start trotting toward a horizontal offset (cursor direction)."""
         if self.flying or self.action in {Action.HAPPY, Action.CHASE}:
             return
+        self.stop_playtime()
+        self.boredom_ticks = 0
         self.action = Action.CHASE
         self.chase_dx = 1 if dx > 0 else -1
         self.facing_left = self.chase_dx < 0
@@ -102,6 +111,17 @@ class BehaviorState:
             return 0, 0
 
         self.drops.tick()
+
+        if self.play_cooldown > 0:
+            self.play_cooldown -= 1
+
+        if self._is_bored_eligible():
+            self.boredom_ticks += 1
+            if self.boredom_ticks >= BOREDOM_THRESHOLD and self.play_cooldown <= 0:
+                self.boredom_ticks = 0
+                self.playtime_enter = True
+        elif self.action != Action.IDLE:
+            self.boredom_ticks = max(0, self.boredom_ticks - 3)
 
         if self.flying:
             self.vy += GRAVITY
@@ -158,6 +178,9 @@ class BehaviorState:
         return dx, dy
 
     def pet(self) -> None:
+        self.stop_playtime()
+        self.boredom_ticks = 0
+        self.play_cooldown = PLAY_COOLDOWN // 2
         self.action = Action.HAPPY
         self.action_ticks = 45
         self.drops.on_pet()
@@ -180,10 +203,21 @@ class BehaviorState:
         self.vx = 0.0
         self.vy = 0.0
         self.action = Action.IDLE
+        self.playtime_enter = False
         self.playtime.start()
 
     def stop_playtime(self) -> None:
+        if self.playtime.active:
+            self.playtime.stop()
+            self.play_cooldown = PLAY_COOLDOWN
+        self.playtime_enter = False
+
+    def on_playtime_finished(self) -> None:
         self.playtime.stop()
+        self.play_cooldown = PLAY_COOLDOWN
+        self.boredom_ticks = 0
+        self.action = Action.IDLE
+        self.action_ticks = 0
 
     def context_label(self) -> str:
         labels = {
@@ -207,6 +241,18 @@ class BehaviorState:
         self.blink_next = random.randint(20, 60)
         self.drops = DropManager()
         self.playtime.stop()
+        self.boredom_ticks = 0
+        self.play_cooldown = random.randint(120, 240)
+        self.playtime_enter = False
+
+    def _is_bored_eligible(self) -> bool:
+        if self.paused or self.flying or self.play_cooldown > 0:
+            return False
+        if self.action != Action.IDLE:
+            return False
+        if self.context in {ForegroundContext.CODING, ForegroundContext.MEETING}:
+            return False
+        return True
 
     def _start_walk(self, length_range: tuple[int, int]) -> None:
         self.action = Action.WALK

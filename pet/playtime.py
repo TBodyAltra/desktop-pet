@@ -15,6 +15,8 @@ CAT_Y = 68
 GRAVITY = 0.38
 ACTIVITY_MIN = 200
 ACTIVITY_MAX = 300
+SESSION_MIN = 220
+SESSION_MAX = 380
 HOOP_X = 118
 HOOP_Y = 34
 
@@ -48,29 +50,40 @@ class PlaySession:
     game_ball_x: float = 92.0
     game_ball_vx: float = 1.4
     game_frame: int = 0
+    session_ticks: int = 0
+    session_duration: int = 0
 
     def start(self) -> None:
         self.active = True
         self.celebrate_ticks = 0
+        self.session_ticks = 0
+        self.session_duration = random.randint(SESSION_MIN, SESSION_MAX)
         self._pick_activity(initial=True)
 
     def stop(self) -> None:
         self.active = False
         self.celebrate_ticks = 0
         self.paw_up = False
+        self.session_ticks = 0
 
-    def tick(self) -> None:
+    def tick(self) -> bool:
+        """Advance play session. Returns True when the session ends naturally."""
         if not self.active:
-            return
+            return False
+
+        self.session_ticks += 1
+        if self.session_ticks >= self.session_duration:
+            self.stop()
+            return True
 
         if self.celebrate_ticks > 0:
             self.celebrate_ticks -= 1
-            return
+            return False
 
         self.activity_ticks += 1
         if self.activity_ticks >= self.activity_duration:
             self._pick_activity()
-            return
+            return False
 
         if self.activity == ActivityKind.JUGGLE:
             self._tick_juggle()
@@ -78,6 +91,7 @@ class PlaySession:
             self._tick_shoot()
         else:
             self._tick_game()
+        return False
 
     def activity_label(self) -> str:
         labels = {
