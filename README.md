@@ -1,6 +1,6 @@
 # 桌面宠物 (Desktop Pet)
 
-一只住在 Windows 桌面上的 **Minecraft 方块风小猫**，透明置顶、可拖动，会自己散步、打盹，双击还会冒出 MC 红心。
+一只住在 Windows 桌面上的**像素风小猫**，透明置顶、可拖动，会自己散步、打盹，双击还会冒出爱心。
 
 ![Desktop pet preview](docs/preview.svg)
 
@@ -22,10 +22,9 @@
   - 会议软件 → 睡觉（`meeting zzz`）
 - **全局快捷键** `Ctrl+Alt+P`：显示/隐藏宠物
 
-### Minecraft 特色
+### 更多玩法
 - **三种猫品种**：橘猫 Tabby / 黑白 Tuxedo / 暹罗 Siamese
 - **随机掉落**：经验球和小鱼干会飘出来，点击收集
-- 方块像素风 + MC 红心粒子
 
 ## 环境要求
 
