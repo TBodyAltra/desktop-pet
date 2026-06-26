@@ -9,6 +9,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QPainter, QPixmap
 
 from pet.drops import Drop, DropKind
+from pet.tennis import COURT_H, COURT_W, TennisGame
 
 
 CANVAS = 96
@@ -21,6 +22,7 @@ class Pose(Enum):
     WALK = auto()
     HAPPY = auto()
     SLEEP = auto()
+    TENNIS = auto()
 
 
 class CatVariant(Enum):
@@ -216,6 +218,79 @@ def _draw_drops(painter: QPainter, drops: list[Drop]) -> None:
             _draw_xp_orb(painter, drop)
         else:
             _draw_fish(painter, drop)
+
+
+def _draw_tennis_ball(painter: QPainter, x: float, y: float) -> None:
+    cx = int(x)
+    cy = int(y)
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setBrush(QColor("#c8f542"))
+    painter.drawEllipse(cx - 6, cy - 6, 12, 12)
+    painter.setBrush(QColor("#ffffff"))
+    painter.drawEllipse(cx - 4, cy - 3, 4, 4)
+
+
+def _draw_tennis_court(painter: QPainter, game: TennisGame) -> None:
+    line = QColor(255, 255, 255, 45)
+    net = QColor(255, 255, 255, 70)
+    painter.setPen(line)
+    painter.drawLine(COURT_W // 2, 10, COURT_W // 2, COURT_H - 10)
+    painter.drawLine(12, COURT_H // 2, COURT_W - 12, COURT_H // 2)
+    painter.setPen(net)
+    for y in range(14, COURT_H - 14, 8):
+        painter.drawLine(COURT_W // 2 - 1, y, COURT_W // 2 + 1, y + 4)
+
+    if game.rally > 0:
+        painter.setPen(QColor("#fef08a"))
+        painter.drawText(COURT_W // 2 - 16, 16, f"{game.rally} 拍")
+
+
+def render_tennis_frame(
+    game: TennisGame,
+    frame: int,
+    *,
+    variant: CatVariant = CatVariant.TABBY,
+) -> QPixmap:
+    palette = palette_for(variant)
+    pixmap = QPixmap(COURT_W, COURT_H)
+    pixmap.fill(Qt.GlobalColor.transparent)
+
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+    _draw_tennis_court(painter, game)
+
+    cat_pose = Pose.HAPPY if game.celebrate_ticks > 0 and game.last_miss == "user" else Pose.TENNIS
+    bounce = frame % 4
+    y_offset = 1 if bounce in {1, 3} and cat_pose == Pose.TENNIS else 0
+    painter.translate(0, int(game.cat_y - CANVAS / 2 + y_offset))
+
+    _draw_cat_body(painter, palette, bounce, game.facing_left)
+    if cat_pose == Pose.TENNIS:
+        paw_x = 15 if not game.facing_left else 7
+        _px(painter, paw_x, 13, palette.fur)
+        _px(painter, paw_x, 12, palette.fur)
+        _px(painter, paw_x + (1 if not game.facing_left else -1), 11, palette.fur_dark)
+        _draw_face(
+            painter,
+            palette,
+            eyes_open=True,
+            happy=False,
+            facing_left=game.facing_left,
+        )
+    else:
+        _draw_face(
+            painter,
+            palette,
+            eyes_open=True,
+            happy=True,
+            facing_left=game.facing_left,
+        )
+        _draw_hearts(painter, frame)
+
+    painter.resetTransform()
+    _draw_tennis_ball(painter, game.ball_x, game.ball_y)
+    painter.end()
+    return pixmap
 
 
 def render_frame(

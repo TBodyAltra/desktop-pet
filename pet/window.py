@@ -12,7 +12,8 @@ from PySide6.QtWidgets import QApplication, QLabel, QMenu, QSystemTrayIcon, QWid
 
 from pet.behavior import FLING_MIN_SPEED, BehaviorState
 from pet.hotkeys import GlobalHotkeyFilter
-from pet.sprites import CANVAS, CatVariant, Pose, SCALE, render_frame
+from pet.sprites import CANVAS, CatVariant, Pose, SCALE, render_frame, render_tennis_frame
+from pet.tennis import COURT_H, COURT_W
 
 
 class PetWindow(QWidget):
@@ -28,6 +29,7 @@ class PetWindow(QWidget):
         self._on_quit: Callable[[], None] | None = None
         self._hotkey_filter: GlobalHotkeyFilter | None = None
         self._chase_cooldown = 0
+        self._compact_geometry = self.frameGeometry()
 
         self._label = QLabel(self)
         self._label.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
@@ -81,11 +83,15 @@ class PetWindow(QWidget):
             if self.state.context_changed:
                 self.state.context_changed = False
 
-            if not self._dragging and not self.state.flying:
+            if not self._dragging and not self.state.flying and not self.state.tennis.active:
                 self._maybe_chase_cursor()
 
             dx, dy = self.state.tick()
-            if dx or dy:
+            if self.state.tennis.active:
+                cursor = QCursor.pos()
+                local = self.mapFromGlobal(cursor)
+                self.state.tennis.tick(float(local.x()), float(local.y()))
+            elif dx or dy:
                 self._move_within_screen(dx, dy)
             self._refresh_sprite()
         except Exception:  # noqa: BLE001 - keep the animation loop alive
@@ -153,13 +159,20 @@ class PetWindow(QWidget):
                 self.state.land()
 
     def _refresh_sprite(self) -> None:
-        pixmap: QPixmap = render_frame(
-            self.state.pose(),
-            self.state.frame,
-            facing_left=self.state.facing_left,
-            variant=self.state.variant,
-            drops=self.state.drops.drops,
-        )
+        if self.state.tennis.active:
+            pixmap = render_tennis_frame(
+                self.state.tennis,
+                self.state.frame,
+                variant=self.state.variant,
+            )
+        else:
+            pixmap = render_frame(
+                self.state.pose(),
+                self.state.frame,
+                facing_left=self.state.facing_left,
+                variant=self.state.variant,
+                drops=self.state.drops.drops,
+            )
         self._label.setPixmap(pixmap)
 
     def _grid_from_event(self, event: QMouseEvent) -> tuple[int, int]:
@@ -186,6 +199,13 @@ class PetWindow(QWidget):
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
+            if self.state.tennis.active:
+                local = event.position()
+                if self.state.tennis.try_hit(local.x(), local.y()):
+                    self._refresh_sprite()
+                event.accept()
+                return
+
             grid_x, grid_y = self._grid_from_event(event)
             collected = self.state.drops.try_collect(grid_x, grid_y)
             if collected is not None:
@@ -209,7 +229,7 @@ class PetWindow(QWidget):
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
-        if self._dragging and event.buttons() & Qt.MouseButton.LeftButton:
+        if self._dragging and not self.state.tennis.active and event.buttons() & Qt.MouseButton.LeftButton:
             self._record_drag_sample(event.globalPosition())
             self.move(event.globalPosition().toPoint() - self._drag_offset)
             event.accept()
@@ -252,6 +272,16 @@ class PetWindow(QWidget):
 
         menu.addSeparator()
 
+        if self.state.tennis.active:
+            tennis_action = QAction("结束网球", self)
+            tennis_action.triggered.connect(self._stop_tennis)
+        else:
+            tennis_action = QAction("打网球", self)
+            tennis_action.triggered.connect(self._start_tennis)
+        menu.addAction(tennis_action)
+
+        menu.addSeparator()
+
         pause_action = QAction("继续动画" if self.state.paused else "暂停动画", self)
         pause_action.triggered.connect(self._toggle_pause)
         menu.addAction(pause_action)
@@ -270,10 +300,37 @@ class PetWindow(QWidget):
         self.state.set_variant(variant)
         self._refresh_sprite()
 
+    def _start_tennis(self) -> None:
+        if self.state.tennis.active:
+            return
+        self._compact_geometry = self.frameGeometry()
+        self.state.start_tennis()
+        self.setFixedSize(COURT_W, COURT_H)
+        self._label.setGeometry(0, 0, COURT_W, COURT_H)
+        geometry = self._screen_geometry()
+        if geometry is not None:
+            x = min(self.x(), geometry.right() - COURT_W)
+            x = max(geometry.left(), x)
+            y = min(self.y(), geometry.bottom() - COURT_H)
+            y = max(geometry.top(), y)
+            self.move(x, y)
+        self._refresh_sprite()
+
+    def _stop_tennis(self) -> None:
+        if not self.state.tennis.active:
+            return
+        self.state.stop_tennis()
+        self.setFixedSize(CANVAS, CANVAS)
+        self._label.setGeometry(0, 0, CANVAS, CANVAS)
+        self.move(self._compact_geometry.topLeft())
+        self._refresh_sprite()
+
     def _toggle_pause(self) -> None:
         self.state.toggle_pause()
 
     def _reset_position(self) -> None:
+        if self.state.tennis.active:
+            self._stop_tennis()
         self.state.reset()
         screen = QGuiApplication.primaryScreen()
         if screen is not None:

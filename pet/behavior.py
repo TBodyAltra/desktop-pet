@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from pet.dev_context import ForegroundContext, detect_context
 from pet.drops import DropManager
 from pet.sprites import CatVariant, Pose
+from pet.tennis import TennisGame
 
 
 class Action:
@@ -44,8 +45,13 @@ class BehaviorState:
     chase_dx: int = 0
     blink_next: int = field(default_factory=lambda: random.randint(20, 60))
     drops: DropManager = field(default_factory=DropManager)
+    tennis: TennisGame = field(default_factory=TennisGame)
 
     def pose(self) -> Pose:
+        if self.tennis.active:
+            if self.tennis.celebrate_ticks > 0 and self.tennis.last_miss == "user":
+                return Pose.HAPPY
+            return Pose.TENNIS
         if self.flying:
             return Pose.BLINK
         if self.action == Action.SLEEP:
@@ -91,6 +97,10 @@ class BehaviorState:
             return 0, 0
 
         self.frame += 1
+
+        if self.tennis.active:
+            return 0, 0
+
         self.drops.tick()
 
         if self.flying:
@@ -165,6 +175,16 @@ class BehaviorState:
     def set_variant(self, variant: CatVariant) -> None:
         self.variant = variant
 
+    def start_tennis(self) -> None:
+        self.flying = False
+        self.vx = 0.0
+        self.vy = 0.0
+        self.action = Action.IDLE
+        self.tennis.start()
+
+    def stop_tennis(self) -> None:
+        self.tennis.stop()
+
     def context_label(self) -> str:
         labels = {
             ForegroundContext.CODING: "coding",
@@ -186,6 +206,7 @@ class BehaviorState:
         self.chase_remaining = 0
         self.blink_next = random.randint(20, 60)
         self.drops = DropManager()
+        self.tennis.stop()
 
     def _start_walk(self, length_range: tuple[int, int]) -> None:
         self.action = Action.WALK
