@@ -5,7 +5,7 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass, field
 
-from pet.dev_context import ForegroundContext, detect_context, get_git_status_message
+from pet.dev_context import ForegroundContext, detect_context
 from pet.drops import DropManager
 from pet.sprites import CatVariant, Pose
 
@@ -15,8 +15,6 @@ class Action:
     WALK = "walk"
     SLEEP = "sleep"
     HAPPY = "happy"
-    DEBUG = "debug"
-    PANIC = "panic"
 
 
 @dataclass
@@ -25,22 +23,16 @@ class BehaviorState:
     frame: int = 0
     facing_left: bool = False
     paused: bool = False
-    debug_mode: bool = False
     variant: CatVariant = CatVariant.TABBY
     walk_remaining: int = 0
     walk_direction: int = 1
     action_ticks: int = 0
     context: ForegroundContext = ForegroundContext.UNKNOWN
     context_cooldown: int = 0
-    status_message: str = ""
     blink_next: int = field(default_factory=lambda: random.randint(20, 60))
     drops: DropManager = field(default_factory=DropManager)
 
     def pose(self) -> Pose:
-        if self.debug_mode or self.action == Action.DEBUG:
-            return Pose.DEBUG
-        if self.action == Action.PANIC:
-            return Pose.PANIC
         if self.action == Action.SLEEP:
             return Pose.SLEEP
         if self.action == Action.HAPPY:
@@ -58,10 +50,6 @@ class BehaviorState:
         self.frame += 1
         self.drops.tick()
 
-        if self.debug_mode:
-            self.action = Action.DEBUG
-            return 0, 0
-
         self.context_cooldown -= 1
         if self.context_cooldown <= 0:
             self.context = detect_context()
@@ -70,13 +58,6 @@ class BehaviorState:
 
         dx = 0
         dy = 0
-
-        if self.action == Action.PANIC:
-            self.action_ticks -= 1
-            dx = random.choice([-3, -2, 2, 3])
-            if self.action_ticks <= 0:
-                self._choose_next_action()
-            return dx, dy
 
         if self.action == Action.HAPPY:
             self.action_ticks -= 1
@@ -117,19 +98,6 @@ class BehaviorState:
         self.paused = not self.paused
         return self.paused
 
-    def toggle_debug(self) -> bool:
-        self.debug_mode = not self.debug_mode
-        if self.debug_mode:
-            self.action = Action.DEBUG
-        else:
-            self.action = Action.IDLE
-        return self.debug_mode
-
-    def trigger_panic(self) -> None:
-        self.debug_mode = False
-        self.action = Action.PANIC
-        self.action_ticks = 60
-
     def cycle_variant(self) -> CatVariant:
         order = [CatVariant.TABBY, CatVariant.TUXEDO, CatVariant.SIAMESE]
         index = (order.index(self.variant) + 1) % len(order)
@@ -138,12 +106,6 @@ class BehaviorState:
 
     def set_variant(self, variant: CatVariant) -> None:
         self.variant = variant
-
-    def refresh_git_status(self) -> str:
-        self.status_message = get_git_status_message()
-        if "merge conflict" in self.status_message:
-            self.trigger_panic()
-        return self.status_message
 
     def context_label(self) -> str:
         labels = {
@@ -160,12 +122,11 @@ class BehaviorState:
         self.frame = 0
         self.walk_remaining = 0
         self.action_ticks = 0
-        self.debug_mode = False
         self.blink_next = random.randint(20, 60)
         self.drops = DropManager()
 
     def _apply_context(self) -> None:
-        if self.action in {Action.HAPPY, Action.PANIC}:
+        if self.action == Action.HAPPY:
             return
 
         if self.context == ForegroundContext.MEETING:
@@ -196,10 +157,6 @@ class BehaviorState:
                 self.walk_remaining = random.randint(40, 100)
 
     def _choose_next_action(self) -> None:
-        if self.debug_mode:
-            self.action = Action.DEBUG
-            return
-
         roll = random.random()
         if self.context == ForegroundContext.MEETING:
             self.action = Action.SLEEP

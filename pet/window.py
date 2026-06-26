@@ -175,18 +175,6 @@ class PetWindow(QWidget):
     def _show_menu(self, global_pos: QPoint) -> None:
         menu = QMenu(self)
 
-        context_action = QAction(f"状态: {self.state.context_label()}", self)
-        context_action.setEnabled(False)
-        menu.addAction(context_action)
-
-        git_action = QAction("git status", self)
-        git_action.triggered.connect(self._show_git_status)
-        menu.addAction(git_action)
-
-        debug_action = QAction("退出 debug" if self.state.debug_mode else "debug mode", self)
-        debug_action.triggered.connect(self._toggle_debug)
-        menu.addAction(debug_action)
-
         variant_menu = menu.addMenu("猫咪品种")
         for variant, label in (
             (CatVariant.TABBY, "橘猫 Tabby"),
@@ -214,15 +202,6 @@ class PetWindow(QWidget):
         quit_action.triggered.connect(self._request_quit)
         menu.addAction(quit_action)
         menu.exec(global_pos)
-
-    def _show_git_status(self) -> None:
-        message = self.state.refresh_git_status()
-        self._show_bubble(message)
-
-    def _toggle_debug(self) -> None:
-        enabled = self.state.toggle_debug()
-        self._show_bubble("debug mode ON" if enabled else "debug mode OFF", 2000)
-        self._refresh_sprite()
 
     def _set_variant(self, variant: CatVariant) -> None:
         self.state.set_variant(variant)
@@ -259,10 +238,6 @@ def create_tray_icon(
     show_action = QAction("显示宠物 (Ctrl+Alt+P)", tray_menu)
     show_action.triggered.connect(on_show)
     tray_menu.addAction(show_action)
-
-    git_action = QAction("git status", tray_menu)
-    git_action.triggered.connect(window._show_git_status)
-    tray_menu.addAction(git_action)
 
     quit_action = QAction("退出", tray_menu)
     quit_action.triggered.connect(on_quit)

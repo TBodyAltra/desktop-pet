@@ -17,8 +17,6 @@
 ### 程序员模式
 - **前台窗口感知**：在 Cursor/VS Code 旁打盹，在 Terminal 里兴奋乱跑，开会时睡觉
 - **全局快捷键** `Ctrl+Alt+P`：显示/隐藏宠物
-- **git status**：右键或托盘查看当前仓库状态；merge conflict 时触发 PANIC 动画
-- **debug mode**：宠物头顶闪烁断点，原地定住不动
 
 ### Minecraft 特色
 - **三种猫品种**：橘猫 Tabby / 黑白 Tuxedo / 暹罗 Siamese
@@ -61,7 +59,7 @@ python main.py
 | 左键拖动 | 移动宠物 |
 | 左键双击 | 抚摸（开心动画 + 可能掉落物品） |
 | 左键点击掉落物 | 收集经验球 / 小鱼干 |
-| 右键 | 打开菜单（git status、debug、换品种） |
+| 右键 | 打开菜单（换品种、暂停、重置） |
 | `Ctrl+Alt+P` | 显示/隐藏宠物 |
 | 托盘双击 | 显示宠物 |
 
@@ -72,7 +70,7 @@ desktop-pet/
 ├── main.py              # 程序入口
 ├── pet/
 │   ├── behavior.py      # 行为状态机
-│   ├── dev_context.py   # 前台窗口 / git 检测
+│   ├── dev_context.py   # 前台窗口检测
 │   ├── drops.py         # 经验球 / 小鱼干掉落
 │   ├── hotkeys.py       # 全局快捷键
 │   ├── sprites.py       # MC 方块猫绘制
