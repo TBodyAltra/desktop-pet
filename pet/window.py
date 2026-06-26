@@ -3,41 +3,34 @@
 from __future__ import annotations
 
 import logging
+from collections import deque
 from typing import Callable
 
-from PySide6.QtCore import QPoint, Qt, QTimer
-from PySide6.QtGui import QAction, QGuiApplication, QMouseEvent, QPixmap
+from PySide6.QtCore import QPoint, QPointF, Qt, QTimer
+from PySide6.QtGui import QAction, QCursor, QGuiApplication, QMouseEvent, QPixmap
 from PySide6.QtWidgets import QApplication, QLabel, QMenu, QSystemTrayIcon, QWidget
 
-from pet.behavior import BehaviorState
+from pet.behavior import FLING_MIN_SPEED, BehaviorState
 from pet.hotkeys import GlobalHotkeyFilter
 from pet.sprites import CANVAS, CatVariant, Pose, SCALE, render_frame
 
 
 class PetWindow(QWidget):
+    CHASE_RANGE = 220
+    CHASE_COOLDOWN_TICKS = 18
+
     def __init__(self) -> None:
         super().__init__()
         self.state = BehaviorState()
         self._drag_offset = QPoint()
         self._dragging = False
+        self._drag_history: deque[tuple[QPointF, float]] = deque(maxlen=6)
         self._on_quit: Callable[[], None] | None = None
         self._hotkey_filter: GlobalHotkeyFilter | None = None
+        self._chase_cooldown = 0
 
         self._label = QLabel(self)
         self._label.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-
-        self._bubble = QLabel(self)
-        self._bubble.setStyleSheet(
-            "background: rgba(20, 20, 20, 210); color: #E2E8F0; "
-            "border: 2px solid #4A5568; border-radius: 4px; padding: 4px 6px; "
-            "font-family: 'Consolas', 'Courier New', monospace; font-size: 11px;"
-        )
-        self._bubble.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        self._bubble.hide()
-
-        self._bubble_timer = QTimer(self)
-        self._bubble_timer.setSingleShot(True)
-        self._bubble_timer.timeout.connect(self._bubble.hide)
 
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint
@@ -83,47 +76,81 @@ class PetWindow(QWidget):
             self.show()
             self.raise_()
 
-    def _show_bubble(self, text: str, ms: int = 3500) -> None:
-        self._bubble.setText(text)
-        self._bubble.adjustSize()
-        self._bubble.move(max(0, (CANVAS - self._bubble.width()) // 2), 0)
-        self._bubble.show()
-        self._bubble.raise_()
-        self._bubble_timer.start(ms)
-
-    _CONTEXT_BUBBLES = {
-        "coding": "coding… zzz",
-        "terminal": "$ terminal!",
-        "browsing": "browsing~",
-        "meeting": "meeting zzz",
-    }
-
     def _on_tick(self) -> None:
         try:
+            if self.state.context_changed:
+                self.state.context_changed = False
+
+            if not self._dragging and not self.state.flying:
+                self._maybe_chase_cursor()
+
             dx, dy = self.state.tick()
             if dx or dy:
                 self._move_within_screen(dx, dy)
-            if self.state.context_changed:
-                self.state.context_changed = False
-                bubble = self._CONTEXT_BUBBLES.get(self.state.context_label())
-                if bubble:
-                    self._show_bubble(bubble, 2500)
             self._refresh_sprite()
         except Exception:  # noqa: BLE001 - keep the animation loop alive
             logging.exception("Error in animation tick")
 
-    def _move_within_screen(self, dx: int, dy: int) -> None:
+    def _maybe_chase_cursor(self) -> None:
+        if self._chase_cooldown > 0:
+            self._chase_cooldown -= 1
+            return
+
+        cursor = QCursor.pos()
+        pet_center = self.frameGeometry().center()
+        offset_x = cursor.x() - pet_center.x()
+        offset_y = cursor.y() - pet_center.y()
+
+        if abs(offset_x) < 50 or abs(offset_x) > self.CHASE_RANGE or abs(offset_y) > 120:
+            return
+
+        self.state.chase_toward(offset_x)
+        self._chase_cooldown = self.CHASE_COOLDOWN_TICKS
+
+    def _screen_geometry(self):
         screen = QGuiApplication.screenAt(self.pos() + QPoint(CANVAS // 2, CANVAS // 2))
         if screen is None:
             screen = QGuiApplication.primaryScreen()
-        if screen is None:
+        return screen.availableGeometry() if screen is not None else None
+
+    def _move_within_screen(self, dx: int, dy: int) -> None:
+        geometry = self._screen_geometry()
+        if geometry is None:
             self.move(self.x() + dx, self.y() + dy)
             return
 
-        geometry = screen.availableGeometry()
-        new_x = max(geometry.left(), min(self.x() + dx, geometry.right() - self.width()))
-        new_y = max(geometry.top(), min(self.y() + dy, geometry.bottom() - self.height()))
+        new_x = self.x() + dx
+        new_y = self.y() + dy
+        bounced_x = False
+        bounced_y = False
+
+        if new_x <= geometry.left():
+            new_x = geometry.left()
+            bounced_x = True
+        elif new_x + self.width() >= geometry.right():
+            new_x = geometry.right() - self.width()
+            bounced_x = True
+
+        if new_y <= geometry.top():
+            new_y = geometry.top()
+            bounced_y = True
+        elif new_y + self.height() >= geometry.bottom():
+            new_y = geometry.bottom() - self.height()
+            bounced_y = True
+
         self.move(new_x, new_y)
+
+        if not self.state.flying:
+            return
+
+        if bounced_x:
+            self.state.bounce_x()
+        if bounced_y:
+            self.state.bounce_y()
+
+        if bounced_y and new_y >= geometry.bottom() - self.height():
+            if abs(self.state.vy) < 4:
+                self.state.land()
 
     def _refresh_sprite(self) -> None:
         pixmap: QPixmap = render_frame(
@@ -139,18 +166,37 @@ class PetWindow(QWidget):
         local = event.position().toPoint()
         return local.x() // SCALE, local.y() // SCALE
 
+    def _record_drag_sample(self, global_pos: QPointF) -> None:
+        import time
+
+        self._drag_history.append((global_pos, time.monotonic()))
+
+    def _release_velocity(self) -> tuple[float, float]:
+        if len(self._drag_history) < 2:
+            return 0.0, 0.0
+
+        (x0, t0), (x1, t1) = self._drag_history[0], self._drag_history[-1]
+        dt = t1 - t0
+        if dt <= 0:
+            return 0.0, 0.0
+
+        vx = (x1.x() - x0.x()) / dt * 0.08
+        vy = (x1.y() - x0.y()) / dt * 0.08
+        return vx, vy
+
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
             grid_x, grid_y = self._grid_from_event(event)
             collected = self.state.drops.try_collect(grid_x, grid_y)
             if collected is not None:
-                label = "经验球 +1" if collected.name == "XP" else "小鱼干 +1"
-                self._show_bubble(label, 1500)
+                self.state.pet()
                 self._refresh_sprite()
                 event.accept()
                 return
 
             self._dragging = True
+            self._drag_history.clear()
+            self._record_drag_sample(event.globalPosition())
             self._drag_offset = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
             event.accept()
             return
@@ -164,14 +210,19 @@ class PetWindow(QWidget):
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         if self._dragging and event.buttons() & Qt.MouseButton.LeftButton:
+            self._record_drag_sample(event.globalPosition())
             self.move(event.globalPosition().toPoint() - self._drag_offset)
             event.accept()
             return
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
-        if event.button() == Qt.MouseButton.LeftButton:
+        if event.button() == Qt.MouseButton.LeftButton and self._dragging:
             self._dragging = False
+            vx, vy = self._release_velocity()
+            speed = (vx * vx + vy * vy) ** 0.5
+            if speed >= FLING_MIN_SPEED:
+                self.state.fling(vx, vy)
             event.accept()
             return
         super().mouseReleaseEvent(event)
@@ -256,6 +307,6 @@ def create_tray_icon(
     tray_menu.addAction(quit_action)
 
     icon.setContextMenu(tray_menu)
-    icon.setToolTip("MC 方块猫 | Ctrl+Alt+P")
+    icon.setToolTip("桌面宠物 | Ctrl+Alt+P")
     icon.show()
     return icon

@@ -15,6 +15,13 @@ class Action:
     WALK = "walk"
     SLEEP = "sleep"
     HAPPY = "happy"
+    CHASE = "chase"
+
+
+GRAVITY = 1.4
+AIR_FRICTION = 0.99
+BOUNCE_DAMPING = 0.55
+FLING_MIN_SPEED = 6.0
 
 
 @dataclass
@@ -30,19 +37,54 @@ class BehaviorState:
     context: ForegroundContext = ForegroundContext.UNKNOWN
     context_cooldown: int = 0
     context_changed: bool = False
+    flying: bool = False
+    vx: float = 0.0
+    vy: float = 0.0
+    chase_remaining: int = 0
+    chase_dx: int = 0
     blink_next: int = field(default_factory=lambda: random.randint(20, 60))
     drops: DropManager = field(default_factory=DropManager)
 
     def pose(self) -> Pose:
+        if self.flying:
+            return Pose.BLINK
         if self.action == Action.SLEEP:
             return Pose.SLEEP
         if self.action == Action.HAPPY:
             return Pose.HAPPY
-        if self.action == Action.WALK:
+        if self.action in {Action.WALK, Action.CHASE}:
             return Pose.WALK
         if self.frame >= self.blink_next and self.frame < self.blink_next + 2:
             return Pose.BLINK
         return Pose.IDLE
+
+    def fling(self, vx: float, vy: float) -> None:
+        self.flying = True
+        self.vx = vx
+        self.vy = vy
+        self.action = Action.IDLE
+
+    def bounce_x(self) -> None:
+        self.vx = -self.vx * BOUNCE_DAMPING
+
+    def bounce_y(self) -> None:
+        self.vy = -self.vy * BOUNCE_DAMPING
+
+    def land(self) -> None:
+        self.flying = False
+        self.vx = 0.0
+        self.vy = 0.0
+        self.action = Action.HAPPY
+        self.action_ticks = 28
+
+    def chase_toward(self, dx: int) -> None:
+        """Start trotting toward a horizontal offset (cursor direction)."""
+        if self.flying or self.action in {Action.HAPPY, Action.CHASE}:
+            return
+        self.action = Action.CHASE
+        self.chase_dx = 1 if dx > 0 else -1
+        self.facing_left = self.chase_dx < 0
+        self.chase_remaining = min(abs(dx), 160)
 
     def tick(self) -> tuple[int, int]:
         if self.paused:
@@ -50,6 +92,18 @@ class BehaviorState:
 
         self.frame += 1
         self.drops.tick()
+
+        if self.flying:
+            self.vy += GRAVITY
+            self.vx *= AIR_FRICTION
+            return int(round(self.vx)), int(round(self.vy))
+
+        if self.action == Action.CHASE:
+            step = 3 * self.chase_dx
+            self.chase_remaining -= abs(step)
+            if self.chase_remaining <= 0:
+                self.action = Action.IDLE
+            return step, 0
 
         self.context_cooldown -= 1
         if self.context_cooldown <= 0:
@@ -126,6 +180,10 @@ class BehaviorState:
         self.frame = 0
         self.walk_remaining = 0
         self.action_ticks = 0
+        self.flying = False
+        self.vx = 0.0
+        self.vy = 0.0
+        self.chase_remaining = 0
         self.blink_next = random.randint(20, 60)
         self.drops = DropManager()
 
