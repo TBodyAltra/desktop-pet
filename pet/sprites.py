@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum, auto
 
 from PySide6.QtCore import Qt
@@ -23,16 +23,16 @@ class Pose(Enum):
 
 @dataclass(frozen=True)
 class Palette:
-    outline: QColor = QColor("#2b1d0e")
-    fur: QColor = QColor("#f4a442")
-    fur_dark: QColor = QColor("#d97706")
-    belly: QColor = QColor("#fde68a")
-    cheek: QColor = QColor("#fca5a5")
-    eye: QColor = QColor("#1f2937")
-    eye_shine: QColor = QColor("#ffffff")
-    nose: QColor = QColor("#fb7185")
-    whisker: QColor = QColor("#78350f")
-    zzz: QColor = QColor("#6366f1")
+    outline: QColor = field(default_factory=lambda: QColor("#2b1d0e"))
+    fur: QColor = field(default_factory=lambda: QColor("#f4a442"))
+    fur_dark: QColor = field(default_factory=lambda: QColor("#d97706"))
+    belly: QColor = field(default_factory=lambda: QColor("#fde68a"))
+    cheek: QColor = field(default_factory=lambda: QColor("#fca5a5"))
+    eye: QColor = field(default_factory=lambda: QColor("#1f2937"))
+    eye_shine: QColor = field(default_factory=lambda: QColor("#ffffff"))
+    nose: QColor = field(default_factory=lambda: QColor("#fb7185"))
+    whisker: QColor = field(default_factory=lambda: QColor("#78350f"))
+    zzz: QColor = field(default_factory=lambda: QColor("#6366f1"))
 
 
 PALETTE = Palette()
