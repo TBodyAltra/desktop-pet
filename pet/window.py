@@ -199,13 +199,6 @@ class PetWindow(QWidget):
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
-            if self.state.tennis.active:
-                local = event.position()
-                if self.state.tennis.try_hit(local.x(), local.y()):
-                    self._refresh_sprite()
-                event.accept()
-                return
-
             grid_x, grid_y = self._grid_from_event(event)
             collected = self.state.drops.try_collect(grid_x, grid_y)
             if collected is not None:

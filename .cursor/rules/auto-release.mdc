@@ -1,0 +1,24 @@
+---
+description: After completing desktop-pet changes, commit and publish a GitHub release
+alwaysApply: true
+---
+
+# Auto commit and release
+
+When you finish a task that changes this repository:
+
+1. Commit all relevant changes with a clear message focused on why.
+2. Bump the patch version tag (`v1.7.2` → `v1.7.3`) based on the latest existing tag.
+3. Push `main` and the new tag through the local proxy:
+
+```powershell
+$env:HTTP_PROXY="http://127.0.0.1:7890"
+$env:HTTPS_PROXY="http://127.0.0.1:7890"
+git -c http.proxy=http://127.0.0.1:7890 -c https.proxy=http://127.0.0.1:7890 push origin main
+git -c http.proxy=http://127.0.0.1:7890 -c https.proxy=http://127.0.0.1:7890 push origin <tag>
+```
+
+4. Confirm the GitHub Actions release for that tag published `DesktopPet.exe`.
+5. Tell the user the commit hash, tag, and release URL.
+
+Do this without waiting for the user to ask again, unless they explicitly say not to release.

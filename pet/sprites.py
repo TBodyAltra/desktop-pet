@@ -240,10 +240,6 @@ def _draw_tennis_court(painter: QPainter, game: TennisGame) -> None:
     for y in range(14, COURT_H - 14, 8):
         painter.drawLine(COURT_W // 2 - 1, y, COURT_W // 2 + 1, y + 4)
 
-    if game.rally > 0:
-        painter.setPen(QColor("#fef08a"))
-        painter.drawText(COURT_W // 2 - 16, 16, f"{game.rally} 拍")
-
 
 def render_tennis_frame(
     game: TennisGame,
