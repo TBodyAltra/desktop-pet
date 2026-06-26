@@ -220,36 +220,37 @@ def _draw_drops(painter: QPainter, drops: list[Drop]) -> None:
             _draw_fish(painter, drop)
 
 
-def _draw_play_ball(painter: QPainter, x: float, y: float, *, orange: bool = False) -> None:
+def _draw_yarn_ball(painter: QPainter, x: float, y: float) -> None:
     cx = int(x)
     cy = int(y)
-    color = QColor("#f97316") if orange else QColor("#c8f542")
+    painter.setPen(QColor("#fda4af"))
+    painter.drawLine(cx, cy, cx - 8, cy + 6)
     painter.setPen(Qt.PenStyle.NoPen)
-    painter.setBrush(color)
-    painter.drawEllipse(cx - 5, cy - 5, 10, 10)
-    painter.setBrush(QColor("#ffffff"))
-    painter.drawEllipse(cx - 3, cy - 2, 3, 3)
+    painter.setBrush(QColor("#fb7185"))
+    painter.drawEllipse(cx - 6, cy - 5, 12, 10)
+    painter.setBrush(QColor("#fecdd3"))
+    painter.drawEllipse(cx - 3, cy - 3, 5, 4)
 
 
-def _draw_hoop(painter: QPainter) -> None:
-    painter.setPen(QColor("#fb923c"))
-    painter.setBrush(Qt.BrushStyle.NoBrush)
-    painter.drawEllipse(112, 28, 14, 14)
-    painter.drawLine(118, 42, 118, 52)
-
-
-def _draw_game_screen(painter: QPainter, session: PlaySession) -> None:
-    painter.fillRect(68, 18, 64, 36, QColor("#1e1b4b"))
-    painter.setPen(QColor("#312e81"))
-    painter.drawRect(68, 18, 64, 36)
-
+def _draw_laser_dot(painter: QPainter, x: float, y: float) -> None:
+    cx = int(x)
+    cy = int(y)
     painter.setPen(Qt.PenStyle.NoPen)
-    painter.setBrush(QColor("#38bdf8"))
-    painter.drawEllipse(int(session.game_player_x), 40, 6, 6)
-    painter.setBrush(QColor("#f472b6"))
-    painter.drawEllipse(int(session.game_enemy_x), 34, 6, 6)
+    painter.setBrush(QColor(255, 40, 40, 60))
+    painter.drawEllipse(cx - 7, cy - 7, 14, 14)
+    painter.setBrush(QColor("#ef4444"))
+    painter.drawEllipse(cx - 3, cy - 3, 6, 6)
+
+
+def _draw_feather_wand(painter: QPainter, x: float, y: float) -> None:
+    cx = int(x)
+    cy = int(y)
+    painter.setPen(QColor("#a16207"))
+    painter.drawLine(cx, cy + 14, cx - 4, cy + 28)
+    painter.setPen(Qt.PenStyle.NoPen)
     painter.setBrush(QColor("#fde047"))
-    painter.drawEllipse(int(session.game_ball_x), 36, 4, 4)
+    for dx, dy in ((0, 0), (-4, 2), (4, 1), (-2, -4), (3, -3)):
+        painter.drawEllipse(cx + dx - 2, cy + dy - 2, 5, 7)
 
 
 def _draw_mouse(painter: QPainter, x: float, y: float) -> None:
@@ -294,11 +295,6 @@ def render_play_frame(
     painter = QPainter(pixmap)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
 
-    if session.activity == ActivityKind.GAME:
-        _draw_game_screen(painter, session)
-    elif session.activity == ActivityKind.SHOOT:
-        _draw_hoop(painter)
-
     if session.activity == ActivityKind.DOG:
         _draw_dog(painter, session.dog_x)
 
@@ -327,20 +323,15 @@ def render_play_frame(
 
     painter.resetTransform()
 
-    if session.activity == ActivityKind.GAME:
-        painter.setPen(QColor("#a5b4fc"))
-        painter.drawText(6, 14, "打游戏")
-    else:
-        painter.setPen(QColor("#a5b4fc"))
-        painter.drawText(6, 14, session.activity_label())
+    painter.setPen(QColor("#a5b4fc"))
+    painter.drawText(6, 14, session.activity_label())
 
-    if session.activity in {ActivityKind.JUGGLE, ActivityKind.SHOOT}:
-        _draw_play_ball(
-            painter,
-            session.ball_x,
-            session.ball_y,
-            orange=session.activity == ActivityKind.SHOOT,
-        )
+    if session.activity == ActivityKind.YARN:
+        _draw_yarn_ball(painter, session.toy_x, session.toy_y)
+    elif session.activity == ActivityKind.LASER:
+        _draw_laser_dot(painter, session.toy_x, session.toy_y)
+    elif session.activity == ActivityKind.FEATHER:
+        _draw_feather_wand(painter, session.toy_x, session.toy_y)
     elif session.activity == ActivityKind.MOUSE:
         _draw_mouse(painter, session.mouse_x, session.mouse_y)
 
