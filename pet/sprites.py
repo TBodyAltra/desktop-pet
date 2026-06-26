@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from enum import Enum, auto
 
@@ -23,6 +24,7 @@ class Pose(Enum):
     HAPPY = auto()
     SLEEP = auto()
     PLAY = auto()
+    DIZZY = auto()
 
 
 class CatVariant(Enum):
@@ -171,6 +173,36 @@ def _draw_face(
         _px(painter, mouth_x + side * 3, y, palette.whisker)
         _px(painter, mouth_x + side * 4, y, palette.whisker)
     _px(painter, mouth_x, 10, palette.outline)
+
+
+def _draw_dizzy_face(painter: QPainter, palette: Palette, frame: int, facing_left: bool) -> None:
+    _px(painter, 11, 9, palette.nose)
+    spin = (frame // 3) % 4
+    offsets = [(0, -1), (1, 0), (0, 1), (-1, 0)]
+    for dx in (-2, 2):
+        eye_x = 10 + dx
+        eye_y = 8
+        for index, (ox, oy) in enumerate(offsets):
+            color = palette.zzz if (index + spin) % 2 == 0 else palette.eye
+            _px(painter, eye_x + ox, eye_y + oy, color)
+    _px(painter, 10, 10, palette.outline)
+    _px(painter, 12, 10, palette.outline)
+    side = -1 if facing_left else 1
+    for y in (9, 10):
+        _px(painter, 11 + side * 3, y, palette.whisker)
+        _px(painter, 11 + side * 4, y, palette.whisker)
+
+
+def _draw_dizzy_stars(painter: QPainter, frame: int) -> None:
+    star = QColor("#fde047")
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setBrush(star)
+    for index in range(3):
+        angle = frame * 0.28 + index * 2.1
+        radius = 10 + index * 4
+        cx = 48 + int(math.cos(angle) * radius)
+        cy = 14 + int(math.sin(angle) * (radius // 2))
+        painter.drawEllipse(cx, cy, 4, 4)
 
 
 def _draw_zzz(painter: QPainter, palette: Palette, frame: int) -> None:
@@ -349,8 +381,12 @@ def render_frame(
     painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
 
     bounce = frame % 4
-    y_offset = 1 if pose == Pose.HAPPY and bounce in {1, 3} else 0
-    painter.translate(0, y_offset * SCALE)
+    if pose == Pose.DIZZY:
+        wobble = int(math.sin(frame * 0.35) * SCALE * 0.6)
+        painter.translate(wobble, 0)
+    else:
+        y_offset = 1 if pose == Pose.HAPPY and bounce in {1, 3} else 0
+        painter.translate(0, y_offset * SCALE)
 
     if pose == Pose.SLEEP:
         for y in range(13, 18):
@@ -363,6 +399,10 @@ def render_frame(
         for dx in (-2, 2):
             _px(painter, 10 + dx, 10, palette.outline)
         _draw_zzz(painter, palette, frame)
+    elif pose == Pose.DIZZY:
+        _draw_cat_body(painter, palette, bounce, facing_left)
+        _draw_dizzy_face(painter, palette, frame, facing_left)
+        _draw_dizzy_stars(painter, frame)
     else:
         _draw_cat_body(painter, palette, bounce, facing_left)
         _draw_face(

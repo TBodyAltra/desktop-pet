@@ -17,6 +17,7 @@ class Action:
     SLEEP = "sleep"
     HAPPY = "happy"
     CHASE = "chase"
+    DIZZY = "dizzy"
 
 
 GRAVITY = 1.4
@@ -55,6 +56,7 @@ class BehaviorState:
     play_cooldown: int = field(default_factory=lambda: random.randint(120, 240))
     playtime_enter: bool = False
     playtime_forced: ActivityKind | None = None
+    fling_speed: float = 0.0
 
     def pose(self) -> Pose:
         if self.playtime.active:
@@ -63,6 +65,8 @@ class BehaviorState:
             return Pose.PLAY
         if self.flying:
             return Pose.BLINK
+        if self.action == Action.DIZZY:
+            return Pose.DIZZY
         if self.action == Action.SLEEP:
             return Pose.SLEEP
         if self.action == Action.HAPPY:
@@ -76,6 +80,7 @@ class BehaviorState:
     def fling(self, vx: float, vy: float) -> None:
         self.stop_playtime()
         self.boredom_ticks = 0
+        self.fling_speed = (vx * vx + vy * vy) ** 0.5
         self.flying = True
         self.vx = vx
         self.vy = vy
@@ -91,12 +96,12 @@ class BehaviorState:
         self.flying = False
         self.vx = 0.0
         self.vy = 0.0
-        self.action = Action.HAPPY
-        self.action_ticks = 28
+        self.action = Action.DIZZY
+        self.action_ticks = int(40 + min(self.fling_speed * 2.8, 75))
 
     def chase_toward(self, dx: int) -> None:
         """Start trotting toward a horizontal offset (cursor direction)."""
-        if self.flying or self.action in {Action.HAPPY, Action.CHASE}:
+        if self.flying or self.action in {Action.HAPPY, Action.CHASE, Action.DIZZY}:
             return
         self.stop_playtime()
         self.boredom_ticks = 0
@@ -167,6 +172,13 @@ class BehaviorState:
                 self._choose_next_action()
             return dx, dy
 
+        if self.action == Action.DIZZY:
+            self.action_ticks -= 1
+            if self.action_ticks <= 0:
+                self.action = Action.IDLE
+                self.action_ticks = 0
+            return dx, dy
+
         if self.action == Action.WALK:
             step = 1 * self.walk_direction
             dx = step
@@ -197,6 +209,7 @@ class BehaviorState:
         self.play_cooldown = PLAY_COOLDOWN // 2
         self.action = Action.HAPPY
         self.action_ticks = 45
+        self.fling_speed = 0.0
         self.drops.on_pet()
 
     def toggle_pause(self) -> bool:
@@ -310,6 +323,8 @@ class BehaviorState:
     def _on_context_change(self) -> None:
         """React immediately and visibly when the foreground app changes."""
         if self.action == Action.HAPPY:
+            return
+        if self.action == Action.DIZZY:
             return
 
         if self.context == ForegroundContext.CODING:
