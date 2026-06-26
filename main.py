@@ -16,6 +16,7 @@ def main() -> int:
     app.setApplicationDisplayName("MC 方块猫")
 
     window = PetWindow()
+    window.install_hotkeys(app)
 
     def show_window() -> None:
         window.show()
@@ -26,7 +27,7 @@ def main() -> int:
         app.quit()
 
     window.set_quit_handler(quit_app)
-    tray = create_tray_icon(app, show_window, quit_app)
+    tray = create_tray_icon(app, window, show_window, quit_app)
     tray.activated.connect(
         lambda reason: show_window()
         if reason == tray.ActivationReason.DoubleClick

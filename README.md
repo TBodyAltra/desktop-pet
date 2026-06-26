@@ -6,12 +6,24 @@
 
 ## 功能
 
+### 基础互动
 - 透明无边框窗口，始终置顶
 - 左键拖动移动位置
 - 双击抚摸，触发开心动画
 - 右键菜单：暂停/继续、重置位置、退出
 - 系统托盘图标，关闭窗口后仍可从托盘唤回
 - 自动行为：待机、散步、睡觉
+
+### 程序员模式
+- **前台窗口感知**：在 Cursor/VS Code 旁打盹，在 Terminal 里兴奋乱跑，开会时睡觉
+- **全局快捷键** `Ctrl+Alt+P`：显示/隐藏宠物
+- **git status**：右键或托盘查看当前仓库状态；merge conflict 时触发 PANIC 动画
+- **debug mode**：宠物头顶闪烁断点，原地定住不动
+
+### Minecraft 特色
+- **三种猫品种**：橘猫 Tabby / 黑白 Tuxedo / 暹罗 Siamese
+- **随机掉落**：经验球和小鱼干会飘出来，点击收集
+- 方块像素风 + MC 红心粒子
 
 ## 环境要求
 
@@ -47,20 +59,25 @@ python main.py
 | 操作 | 效果 |
 |------|------|
 | 左键拖动 | 移动宠物 |
-| 左键双击 | 抚摸（开心动画） |
-| 右键 | 打开菜单 |
+| 左键双击 | 抚摸（开心动画 + 可能掉落物品） |
+| 左键点击掉落物 | 收集经验球 / 小鱼干 |
+| 右键 | 打开菜单（git status、debug、换品种） |
+| `Ctrl+Alt+P` | 显示/隐藏宠物 |
 | 托盘双击 | 显示宠物 |
 
 ## 项目结构
 
 ```
 desktop-pet/
-├── main.py           # 程序入口
+├── main.py              # 程序入口
 ├── pet/
-│   ├── behavior.py   # 行为状态机
-│   ├── sprites.py    # 像素精灵绘制
-│   └── window.py     # 透明窗口与托盘
-├── run.bat           # Windows 一键启动
+│   ├── behavior.py      # 行为状态机
+│   ├── dev_context.py   # 前台窗口 / git 检测
+│   ├── drops.py         # 经验球 / 小鱼干掉落
+│   ├── hotkeys.py       # 全局快捷键
+│   ├── sprites.py       # MC 方块猫绘制
+│   └── window.py        # 透明窗口与托盘
+├── run.bat              # Windows 一键启动
 └── requirements.txt
 ```
 
