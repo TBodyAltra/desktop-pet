@@ -38,14 +38,22 @@ class GlobalHotkeyFilter(QAbstractNativeEventFilter):
         self._registered = False
 
     def nativeEventFilter(self, event_type: QByteArray, message: int) -> tuple[bool, int]:
-        if sys.platform != "win32" or event_type != b"windows_generic_MSG":
+        if sys.platform != "win32":
             return False, 0
 
-        import ctypes
-        from ctypes import wintypes
+        try:
+            if bytes(event_type) != b"windows_generic_MSG":
+                return False, 0
 
-        msg = ctypes.cast(message, ctypes.POINTER(wintypes.MSG)).contents
-        if msg.message == self.WM_HOTKEY and msg.wParam == self.HOTKEY_ID:
-            self._on_toggle()
-            return True, 0
+            import ctypes
+            from ctypes import wintypes
+
+            address = int(message)
+            msg = ctypes.cast(address, ctypes.POINTER(wintypes.MSG)).contents
+            if msg.message == self.WM_HOTKEY and msg.wParam == self.HOTKEY_ID:
+                self._on_toggle()
+                return True, 0
+        except Exception:  # noqa: BLE001 - never let a hook crash the app
+            return False, 0
+
         return False, 0

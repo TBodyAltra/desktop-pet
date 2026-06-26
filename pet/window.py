@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Callable
 
 from PySide6.QtCore import QPoint, Qt, QTimer
@@ -91,10 +92,13 @@ class PetWindow(QWidget):
         self._bubble_timer.start(ms)
 
     def _on_tick(self) -> None:
-        dx, dy = self.state.tick()
-        if dx or dy:
-            self._move_within_screen(dx, dy)
-        self._refresh_sprite()
+        try:
+            dx, dy = self.state.tick()
+            if dx or dy:
+                self._move_within_screen(dx, dy)
+            self._refresh_sprite()
+        except Exception:  # noqa: BLE001 - keep the animation loop alive
+            logging.exception("Error in animation tick")
 
     def _move_within_screen(self, dx: int, dy: int) -> None:
         screen = QGuiApplication.screenAt(self.pos() + QPoint(CANVAS // 2, CANVAS // 2))
