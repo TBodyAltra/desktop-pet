@@ -38,6 +38,10 @@ python main.py
 
 首次运行会自动创建虚拟环境并安装依赖。
 
+### 直接下载 EXE
+
+无需安装 Python，可在 [Releases](https://github.com/TBodyAltra/desktop-pet/releases) 页面下载打包好的 `DesktopPet.exe`，双击即可运行。
+
 ## 操作说明
 
 | 操作 | 效果 |
