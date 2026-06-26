@@ -9,7 +9,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QPainter, QPixmap
 
 from pet.drops import Drop, DropKind
-from pet.tennis import COURT_H, COURT_W, TennisGame
+from pet.playtime import CAT_X, CAT_Y, PLAY_H, PLAY_W, ActivityKind, PlaySession
 
 
 CANVAS = 96
@@ -22,7 +22,7 @@ class Pose(Enum):
     WALK = auto()
     HAPPY = auto()
     SLEEP = auto()
-    TENNIS = auto()
+    PLAY = auto()
 
 
 class CatVariant(Enum):
@@ -220,71 +220,95 @@ def _draw_drops(painter: QPainter, drops: list[Drop]) -> None:
             _draw_fish(painter, drop)
 
 
-def _draw_tennis_ball(painter: QPainter, x: float, y: float) -> None:
+def _draw_play_ball(painter: QPainter, x: float, y: float, *, orange: bool = False) -> None:
     cx = int(x)
     cy = int(y)
+    color = QColor("#f97316") if orange else QColor("#c8f542")
     painter.setPen(Qt.PenStyle.NoPen)
-    painter.setBrush(QColor("#c8f542"))
-    painter.drawEllipse(cx - 6, cy - 6, 12, 12)
+    painter.setBrush(color)
+    painter.drawEllipse(cx - 5, cy - 5, 10, 10)
     painter.setBrush(QColor("#ffffff"))
-    painter.drawEllipse(cx - 4, cy - 3, 4, 4)
+    painter.drawEllipse(cx - 3, cy - 2, 3, 3)
 
 
-def _draw_tennis_court(painter: QPainter, game: TennisGame) -> None:
-    line = QColor(255, 255, 255, 45)
-    net = QColor(255, 255, 255, 70)
-    painter.setPen(line)
-    painter.drawLine(COURT_W // 2, 10, COURT_W // 2, COURT_H - 10)
-    painter.drawLine(12, COURT_H // 2, COURT_W - 12, COURT_H // 2)
-    painter.setPen(net)
-    for y in range(14, COURT_H - 14, 8):
-        painter.drawLine(COURT_W // 2 - 1, y, COURT_W // 2 + 1, y + 4)
+def _draw_hoop(painter: QPainter) -> None:
+    painter.setPen(QColor("#fb923c"))
+    painter.setBrush(Qt.BrushStyle.NoBrush)
+    painter.drawEllipse(112, 28, 14, 14)
+    painter.drawLine(118, 42, 118, 52)
 
 
-def render_tennis_frame(
-    game: TennisGame,
+def _draw_game_screen(painter: QPainter, session: PlaySession) -> None:
+    painter.fillRect(68, 18, 64, 36, QColor("#1e1b4b"))
+    painter.setPen(QColor("#312e81"))
+    painter.drawRect(68, 18, 64, 36)
+
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setBrush(QColor("#38bdf8"))
+    painter.drawEllipse(int(session.game_player_x), 40, 6, 6)
+    painter.setBrush(QColor("#f472b6"))
+    painter.drawEllipse(int(session.game_enemy_x), 34, 6, 6)
+    painter.setBrush(QColor("#fde047"))
+    painter.drawEllipse(int(session.game_ball_x), 36, 4, 4)
+
+
+def render_play_frame(
+    session: PlaySession,
     frame: int,
     *,
     variant: CatVariant = CatVariant.TABBY,
 ) -> QPixmap:
     palette = palette_for(variant)
-    pixmap = QPixmap(COURT_W, COURT_H)
+    pixmap = QPixmap(PLAY_W, PLAY_H)
     pixmap.fill(Qt.GlobalColor.transparent)
 
     painter = QPainter(pixmap)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
-    _draw_tennis_court(painter, game)
 
-    cat_pose = Pose.HAPPY if game.celebrate_ticks > 0 and game.last_miss == "user" else Pose.TENNIS
+    if session.activity == ActivityKind.GAME:
+        _draw_game_screen(painter, session)
+    elif session.activity == ActivityKind.SHOOT:
+        _draw_hoop(painter)
+
+    happy = session.celebrate_ticks > 0
     bounce = frame % 4
-    y_offset = 1 if bounce in {1, 3} and cat_pose == Pose.TENNIS else 0
-    painter.translate(0, int(game.cat_y - CANVAS / 2 + y_offset))
+    y_offset = 1 if bounce in {1, 3} and not happy else 0
+    painter.translate(CAT_X - 48, int(CAT_Y - 48 + y_offset))
 
-    _draw_cat_body(painter, palette, bounce, game.facing_left)
-    if cat_pose == Pose.TENNIS:
-        paw_x = 15 if not game.facing_left else 7
-        _px(painter, paw_x, 13, palette.fur)
+    _draw_cat_body(painter, palette, bounce, session.facing_left)
+    if session.paw_up and not happy:
+        paw_x = 15 if not session.facing_left else 7
         _px(painter, paw_x, 12, palette.fur)
-        _px(painter, paw_x + (1 if not game.facing_left else -1), 11, palette.fur_dark)
-        _draw_face(
-            painter,
-            palette,
-            eyes_open=True,
-            happy=False,
-            facing_left=game.facing_left,
-        )
-    else:
-        _draw_face(
-            painter,
-            palette,
-            eyes_open=True,
-            happy=True,
-            facing_left=game.facing_left,
-        )
+        _px(painter, paw_x, 11, palette.fur_dark)
+        _px(painter, paw_x + (1 if not session.facing_left else -1), 10, palette.fur_dark)
+
+    _draw_face(
+        painter,
+        palette,
+        eyes_open=True,
+        happy=happy,
+        facing_left=session.facing_left,
+    )
+    if happy:
         _draw_hearts(painter, frame)
 
     painter.resetTransform()
-    _draw_tennis_ball(painter, game.ball_x, game.ball_y)
+
+    if session.activity == ActivityKind.GAME:
+        painter.setPen(QColor("#a5b4fc"))
+        painter.drawText(6, 14, "打游戏")
+    else:
+        painter.setPen(QColor("#a5b4fc"))
+        painter.drawText(6, 14, session.activity_label())
+
+    if session.activity in {ActivityKind.JUGGLE, ActivityKind.SHOOT}:
+        _draw_play_ball(
+            painter,
+            session.ball_x,
+            session.ball_y,
+            orange=session.activity == ActivityKind.SHOOT,
+        )
+
     painter.end()
     return pixmap
 

@@ -12,8 +12,8 @@ from PySide6.QtWidgets import QApplication, QLabel, QMenu, QSystemTrayIcon, QWid
 
 from pet.behavior import FLING_MIN_SPEED, BehaviorState
 from pet.hotkeys import GlobalHotkeyFilter
-from pet.sprites import CANVAS, CatVariant, Pose, SCALE, render_frame, render_tennis_frame
-from pet.tennis import COURT_H, COURT_W
+from pet.sprites import CANVAS, CatVariant, Pose, SCALE, render_frame, render_play_frame
+from pet.playtime import PLAY_H, PLAY_W
 
 
 class PetWindow(QWidget):
@@ -83,14 +83,12 @@ class PetWindow(QWidget):
             if self.state.context_changed:
                 self.state.context_changed = False
 
-            if not self._dragging and not self.state.flying and not self.state.tennis.active:
+            if not self._dragging and not self.state.flying and not self.state.playtime.active:
                 self._maybe_chase_cursor()
 
             dx, dy = self.state.tick()
-            if self.state.tennis.active:
-                cursor = QCursor.pos()
-                local = self.mapFromGlobal(cursor)
-                self.state.tennis.tick(float(local.x()), float(local.y()))
+            if self.state.playtime.active:
+                self.state.playtime.tick()
             elif dx or dy:
                 self._move_within_screen(dx, dy)
             self._refresh_sprite()
@@ -159,9 +157,9 @@ class PetWindow(QWidget):
                 self.state.land()
 
     def _refresh_sprite(self) -> None:
-        if self.state.tennis.active:
-            pixmap = render_tennis_frame(
-                self.state.tennis,
+        if self.state.playtime.active:
+            pixmap = render_play_frame(
+                self.state.playtime,
                 self.state.frame,
                 variant=self.state.variant,
             )
@@ -222,7 +220,7 @@ class PetWindow(QWidget):
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
-        if self._dragging and not self.state.tennis.active and event.buttons() & Qt.MouseButton.LeftButton:
+        if self._dragging and not self.state.playtime.active and event.buttons() & Qt.MouseButton.LeftButton:
             self._record_drag_sample(event.globalPosition())
             self.move(event.globalPosition().toPoint() - self._drag_offset)
             event.accept()
@@ -265,13 +263,13 @@ class PetWindow(QWidget):
 
         menu.addSeparator()
 
-        if self.state.tennis.active:
-            tennis_action = QAction("结束网球", self)
-            tennis_action.triggered.connect(self._stop_tennis)
+        if self.state.playtime.active:
+            play_action = QAction("停下来", self)
+            play_action.triggered.connect(self._stop_playtime)
         else:
-            tennis_action = QAction("打网球", self)
-            tennis_action.triggered.connect(self._start_tennis)
-        menu.addAction(tennis_action)
+            play_action = QAction("让它自己玩", self)
+            play_action.triggered.connect(self._start_playtime)
+        menu.addAction(play_action)
 
         menu.addSeparator()
 
@@ -293,26 +291,26 @@ class PetWindow(QWidget):
         self.state.set_variant(variant)
         self._refresh_sprite()
 
-    def _start_tennis(self) -> None:
-        if self.state.tennis.active:
+    def _start_playtime(self) -> None:
+        if self.state.playtime.active:
             return
         self._compact_geometry = self.frameGeometry()
-        self.state.start_tennis()
-        self.setFixedSize(COURT_W, COURT_H)
-        self._label.setGeometry(0, 0, COURT_W, COURT_H)
+        self.state.start_playtime()
+        self.setFixedSize(PLAY_W, PLAY_H)
+        self._label.setGeometry(0, 0, PLAY_W, PLAY_H)
         geometry = self._screen_geometry()
         if geometry is not None:
-            x = min(self.x(), geometry.right() - COURT_W)
+            x = min(self.x(), geometry.right() - PLAY_W)
             x = max(geometry.left(), x)
-            y = min(self.y(), geometry.bottom() - COURT_H)
+            y = min(self.y(), geometry.bottom() - PLAY_H)
             y = max(geometry.top(), y)
             self.move(x, y)
         self._refresh_sprite()
 
-    def _stop_tennis(self) -> None:
-        if not self.state.tennis.active:
+    def _stop_playtime(self) -> None:
+        if not self.state.playtime.active:
             return
-        self.state.stop_tennis()
+        self.state.stop_playtime()
         self.setFixedSize(CANVAS, CANVAS)
         self._label.setGeometry(0, 0, CANVAS, CANVAS)
         self.move(self._compact_geometry.topLeft())
@@ -322,8 +320,8 @@ class PetWindow(QWidget):
         self.state.toggle_pause()
 
     def _reset_position(self) -> None:
-        if self.state.tennis.active:
-            self._stop_tennis()
+        if self.state.playtime.active:
+            self._stop_playtime()
         self.state.reset()
         screen = QGuiApplication.primaryScreen()
         if screen is not None:
