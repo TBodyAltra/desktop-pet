@@ -161,6 +161,6 @@ def create_tray_icon(app: QApplication, on_show: Callable[[], None], on_quit: Ca
     tray_menu.addAction(quit_action)
 
     icon.setContextMenu(tray_menu)
-    icon.setToolTip("桌面宠物")
+    icon.setToolTip("MC 方块猫")
     icon.show()
     return icon

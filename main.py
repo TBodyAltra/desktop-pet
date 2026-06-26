@@ -13,7 +13,7 @@ def main() -> int:
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
     app.setApplicationName("Desktop Pet")
-    app.setApplicationDisplayName("桌面宠物")
+    app.setApplicationDisplayName("MC 方块猫")
 
     window = PetWindow()
 

@@ -1,6 +1,6 @@
 # 桌面宠物 (Desktop Pet)
 
-一只住在 Windows 桌面上的像素风小猫，透明置顶、可拖动，会自己散步、打盹，双击还会开心。
+一只住在 Windows 桌面上的 **Minecraft 方块风小猫**，透明置顶、可拖动，会自己散步、打盹，双击还会冒出 MC 红心。
 
 ![Desktop pet preview](docs/preview.svg)
 
