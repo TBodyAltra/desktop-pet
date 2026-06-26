@@ -23,8 +23,10 @@ GRAVITY = 1.4
 AIR_FRICTION = 0.99
 BOUNCE_DAMPING = 0.55
 FLING_MIN_SPEED = 6.0
-BOREDOM_THRESHOLD = 320
-PLAY_COOLDOWN = 480
+BOREDOM_THRESHOLD = 280
+BOREDOM_THRESHOLD_CODING = 160
+PLAY_COOLDOWN = 360
+PLAY_COOLDOWN_CODING = 220
 
 
 @dataclass
@@ -117,7 +119,7 @@ class BehaviorState:
 
         if self._is_bored_eligible():
             self.boredom_ticks += 1
-            if self.boredom_ticks >= BOREDOM_THRESHOLD and self.play_cooldown <= 0:
+            if self.boredom_ticks >= self._boredom_threshold() and self.play_cooldown <= 0:
                 self.boredom_ticks = 0
                 self.playtime_enter = True
         elif self.action != Action.IDLE:
@@ -209,12 +211,12 @@ class BehaviorState:
     def stop_playtime(self) -> None:
         if self.playtime.active:
             self.playtime.stop()
-            self.play_cooldown = PLAY_COOLDOWN
+            self.play_cooldown = self._play_cooldown()
         self.playtime_enter = False
 
     def on_playtime_finished(self) -> None:
         self.playtime.stop()
-        self.play_cooldown = PLAY_COOLDOWN
+        self.play_cooldown = self._play_cooldown()
         self.boredom_ticks = 0
         self.action = Action.IDLE
         self.action_ticks = 0
@@ -245,14 +247,39 @@ class BehaviorState:
         self.play_cooldown = random.randint(120, 240)
         self.playtime_enter = False
 
+    def _boredom_threshold(self) -> int:
+        if self.context == ForegroundContext.CODING:
+            return BOREDOM_THRESHOLD_CODING
+        return BOREDOM_THRESHOLD
+
+    def _play_cooldown(self) -> int:
+        if self.context == ForegroundContext.CODING:
+            return PLAY_COOLDOWN_CODING
+        return PLAY_COOLDOWN
+
     def _is_bored_eligible(self) -> bool:
         if self.paused or self.flying or self.play_cooldown > 0:
             return False
         if self.action != Action.IDLE:
             return False
-        if self.context in {ForegroundContext.CODING, ForegroundContext.MEETING}:
+        if self.context == ForegroundContext.MEETING:
             return False
         return True
+
+    def _choose_coding_action(self) -> None:
+        """Cat-like behavior while you code: prowl, brief naps, then solo play."""
+        roll = random.random()
+        if roll < 0.32:
+            self._start_walk((60, 150))
+        elif roll < 0.42:
+            self._start_sleep((45, 85))
+        elif roll < 0.52:
+            self.boredom_ticks = max(self.boredom_ticks, self._boredom_threshold() - 30)
+            self.action = Action.IDLE
+            self.action_ticks = 0
+        else:
+            self.action = Action.IDLE
+            self.action_ticks = 0
 
     def _start_walk(self, length_range: tuple[int, int]) -> None:
         self.action = Action.WALK
@@ -270,8 +297,14 @@ class BehaviorState:
             return
 
         if self.context == ForegroundContext.CODING:
-            # Curl up and doze next to the editor.
-            self._start_sleep((140, 260))
+            roll = random.random()
+            if roll < 0.4:
+                self._start_walk((80, 150))
+            elif roll < 0.55:
+                self._start_sleep((40, 75))
+            else:
+                self.action = Action.IDLE
+                self.action_ticks = 0
         elif self.context == ForegroundContext.MEETING:
             self._start_sleep((200, 320))
         elif self.context == ForegroundContext.TERMINAL:
@@ -286,8 +319,11 @@ class BehaviorState:
     def _choose_next_action(self) -> None:
         roll = random.random()
 
-        if self.context in {ForegroundContext.CODING, ForegroundContext.MEETING}:
-            # Stay calm and nap while you focus.
+        if self.context == ForegroundContext.CODING:
+            self._choose_coding_action()
+            return
+
+        if self.context == ForegroundContext.MEETING:
             if roll < 0.7:
                 self._start_sleep((140, 260))
             else:
