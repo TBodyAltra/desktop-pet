@@ -252,6 +252,35 @@ def _draw_game_screen(painter: QPainter, session: PlaySession) -> None:
     painter.drawEllipse(int(session.game_ball_x), 36, 4, 4)
 
 
+def _draw_mouse(painter: QPainter, x: float, y: float) -> None:
+    cx = int(x)
+    cy = int(y)
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setBrush(QColor("#9ca3af"))
+    painter.drawEllipse(cx - 4, cy - 3, 8, 6)
+    painter.setBrush(QColor("#fca5a5"))
+    painter.drawEllipse(cx + 3, cy - 4, 3, 3)
+    painter.drawLine(cx - 6, cy - 1, cx - 10, cy - 3)
+    painter.drawLine(cx - 6, cy + 1, cx - 10, cy + 2)
+
+
+def _draw_dog(painter: QPainter, x: float) -> None:
+    if x < -20 or x > PLAY_W + 20:
+        return
+    cx = int(x)
+    cy = 72
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setBrush(QColor("#92400e"))
+    painter.drawEllipse(cx - 10, cy - 10, 22, 14)
+    painter.drawEllipse(cx + 8, cy - 16, 10, 10)
+    painter.setBrush(QColor("#1f2937"))
+    for px in (cx - 4, cx + 2):
+        painter.drawEllipse(px, cy - 12, 3, 3)
+    painter.setBrush(QColor("#78350f"))
+    painter.drawEllipse(cx - 12, cy - 2, 5, 4)
+    painter.drawEllipse(cx + 10, cy - 2, 5, 4)
+
+
 def render_play_frame(
     session: PlaySession,
     frame: int,
@@ -270,10 +299,14 @@ def render_play_frame(
     elif session.activity == ActivityKind.SHOOT:
         _draw_hoop(painter)
 
+    if session.activity == ActivityKind.DOG:
+        _draw_dog(painter, session.dog_x)
+
     happy = session.celebrate_ticks > 0
     bounce = frame % 4
     y_offset = 1 if bounce in {1, 3} and not happy else 0
-    painter.translate(CAT_X - 48, int(CAT_Y - 48 + y_offset))
+    cat_shift = int(session.cat_offset_x)
+    painter.translate(CAT_X - 48 + cat_shift, int(CAT_Y - 48 + y_offset))
 
     _draw_cat_body(painter, palette, bounce, session.facing_left)
     if session.paw_up and not happy:
@@ -308,6 +341,8 @@ def render_play_frame(
             session.ball_y,
             orange=session.activity == ActivityKind.SHOOT,
         )
+    elif session.activity == ActivityKind.MOUSE:
+        _draw_mouse(painter, session.mouse_x, session.mouse_y)
 
     painter.end()
     return pixmap

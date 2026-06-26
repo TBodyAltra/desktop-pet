@@ -1,4 +1,4 @@
-"""Solo play activities the cat performs on its own."""
+"""Solo play activities and random encounters for the desktop cat."""
 
 from __future__ import annotations
 
@@ -25,6 +25,8 @@ class ActivityKind(Enum):
     JUGGLE = auto()
     SHOOT = auto()
     GAME = auto()
+    MOUSE = auto()
+    DOG = auto()
 
 
 @dataclass
@@ -36,6 +38,7 @@ class PlaySession:
     celebrate_ticks: int = 0
     facing_left: bool = False
     paw_up: bool = False
+    cat_offset_x: float = 0.0
 
     ball_x: float = 0.0
     ball_y: float = 0.0
@@ -50,20 +53,32 @@ class PlaySession:
     game_ball_x: float = 92.0
     game_ball_vx: float = 1.4
     game_frame: int = 0
+
+    mouse_x: float = 100.0
+    mouse_y: float = 78.0
+    mouse_vx: float = 1.6
+    mouse_caught: int = 0
+
+    dog_x: float = 150.0
+    dog_phase: int = 0
+    dog_wait: int = 0
+
     session_ticks: int = 0
     session_duration: int = 0
 
-    def start(self) -> None:
+    def start(self, forced: ActivityKind | None = None) -> None:
         self.active = True
         self.celebrate_ticks = 0
+        self.cat_offset_x = 0.0
         self.session_ticks = 0
         self.session_duration = random.randint(SESSION_MIN, SESSION_MAX)
-        self._pick_activity(initial=True)
+        self._pick_activity(initial=True, forced=forced)
 
     def stop(self) -> None:
         self.active = False
         self.celebrate_ticks = 0
         self.paw_up = False
+        self.cat_offset_x = 0.0
         self.session_ticks = 0
 
     def tick(self) -> bool:
@@ -89,8 +104,12 @@ class PlaySession:
             self._tick_juggle()
         elif self.activity == ActivityKind.SHOOT:
             self._tick_shoot()
-        else:
+        elif self.activity == ActivityKind.GAME:
             self._tick_game()
+        elif self.activity == ActivityKind.MOUSE:
+            self._tick_mouse()
+        else:
+            self._tick_dog()
         return False
 
     def activity_label(self) -> str:
@@ -98,17 +117,22 @@ class PlaySession:
             ActivityKind.JUGGLE: "颠球",
             ActivityKind.SHOOT: "投篮",
             ActivityKind.GAME: "打游戏",
+            ActivityKind.MOUSE: "抓老鼠",
+            ActivityKind.DOG: "快跑",
         }
         return labels[self.activity]
 
-    def _pick_activity(self, initial: bool = False) -> None:
-        options = list(ActivityKind)
-        if not initial:
-            options = [kind for kind in options if kind != self.activity]
-        self.activity = random.choice(options)
+    def _pick_activity(self, initial: bool = False, forced: ActivityKind | None = None) -> None:
+        if forced is not None:
+            self.activity = forced
+        else:
+            options = list(ActivityKind)
+            if not initial:
+                options = [kind for kind in options if kind != self.activity]
+            self.activity = random.choice(options)
         self.activity_ticks = 0
         self.activity_duration = random.randint(ACTIVITY_MIN, ACTIVITY_MAX)
-        self.facing_left = self.activity == ActivityKind.SHOOT
+        self.facing_left = self.activity in {ActivityKind.SHOOT, ActivityKind.DOG}
         self._reset_activity_state()
 
     def _reset_activity_state(self) -> None:
@@ -116,6 +140,10 @@ class PlaySession:
         self.shoot_phase = 0
         self.shoot_wait = 0
         self.game_frame = 0
+        self.cat_offset_x = 0.0
+        self.mouse_caught = 0
+        self.dog_phase = 0
+        self.dog_wait = 0
 
         if self.activity == ActivityKind.JUGGLE:
             self.ball_x = float(CAT_X)
@@ -127,11 +155,21 @@ class PlaySession:
             self.ball_y = float(CAT_Y - 18)
             self.ball_vx = 0.0
             self.ball_vy = 0.0
-        else:
+        elif self.activity == ActivityKind.GAME:
             self.game_player_x = 78.0
             self.game_enemy_x = 108.0
             self.game_ball_x = 92.0
             self.game_ball_vx = random.choice([-1.4, 1.4])
+        elif self.activity == ActivityKind.MOUSE:
+            self._spawn_mouse()
+        else:
+            self.dog_x = float(PLAY_W + 20)
+            self.facing_left = True
+
+    def _spawn_mouse(self) -> None:
+        self.mouse_x = random.uniform(88, 128)
+        self.mouse_y = random.uniform(72, 84)
+        self.mouse_vx = random.choice([-1.8, -1.4, 1.4, 1.8])
 
     def _tick_juggle(self) -> None:
         self.ball_vy += GRAVITY
@@ -152,9 +190,8 @@ class PlaySession:
             self.ball_vx *= -0.6
             self.ball_x = CAT_X + (14 if self.ball_x > CAT_X else -14)
 
-        if self.paw_up:
-            if self.ball_vy < -1.0:
-                self.paw_up = False
+        if self.paw_up and self.ball_vy < -1.0:
+            self.paw_up = False
 
     def _tick_shoot(self) -> None:
         if self.shoot_phase == 0:
@@ -199,3 +236,51 @@ class PlaySession:
             self.game_ball_vx *= -1
 
         self.paw_up = self.game_frame % 24 < 6
+
+    def _tick_mouse(self) -> None:
+        self.mouse_x += self.mouse_vx
+        self.mouse_y += math.sin(self.activity_ticks * 0.22) * 0.35
+
+        if self.mouse_x <= 18 or self.mouse_x >= PLAY_W - 10:
+            self.mouse_vx *= -1
+
+        cat_x = CAT_X + self.cat_offset_x
+        dx = self.mouse_x - cat_x
+        step = 1.2 if abs(dx) > 28 else 2.4
+        if abs(dx) > 4:
+            self.cat_offset_x += step if dx > 0 else -step
+            self.facing_left = dx < 0
+
+        self.paw_up = abs(dx) < 22 and self.activity_ticks % 16 < 8
+
+        if math.hypot(self.mouse_x - cat_x, self.mouse_y - (CAT_Y - 10)) < 14:
+            self.celebrate_ticks = 24
+            self.paw_up = True
+            self.mouse_caught += 1
+            self._spawn_mouse()
+            self.cat_offset_x *= 0.4
+
+    def _tick_dog(self) -> None:
+        if self.dog_phase == 0:
+            self.dog_x -= 2.8
+            self.dog_wait += 1
+            if self.dog_x < PLAY_W - 8 or self.dog_wait > 24:
+                self.dog_phase = 1
+            return
+
+        flee_speed = 2.6 if self.dog_x - (CAT_X + self.cat_offset_x) < 36 else 1.8
+        self.cat_offset_x -= flee_speed
+        self.dog_x -= 2.2
+        self.facing_left = True
+        self.paw_up = self.activity_ticks % 6 < 3
+
+        if self.cat_offset_x < -8:
+            self.cat_offset_x = -8
+
+        if self.dog_x < CAT_X + self.cat_offset_x - 50 or self.activity_ticks > 220:
+            self.dog_phase = 2
+            self.celebrate_ticks = 26
+            self.dog_x = -30.0
+
+        if self.dog_phase == 2:
+            self.dog_x -= 3.0

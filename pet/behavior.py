@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from pet.dev_context import ForegroundContext, detect_context
 from pet.drops import DropManager
 from pet.sprites import CatVariant, Pose
-from pet.playtime import PlaySession
+from pet.playtime import ActivityKind, PlaySession
 
 
 class Action:
@@ -27,6 +27,7 @@ BOREDOM_THRESHOLD = 280
 BOREDOM_THRESHOLD_CODING = 160
 PLAY_COOLDOWN = 360
 PLAY_COOLDOWN_CODING = 220
+ENCOUNTER_CHANCE = 0.0014
 
 
 @dataclass
@@ -53,6 +54,7 @@ class BehaviorState:
     boredom_ticks: int = 0
     play_cooldown: int = field(default_factory=lambda: random.randint(120, 240))
     playtime_enter: bool = False
+    playtime_forced: ActivityKind | None = None
 
     def pose(self) -> Pose:
         if self.playtime.active:
@@ -124,6 +126,16 @@ class BehaviorState:
                 self.playtime_enter = True
         elif self.action != Action.IDLE:
             self.boredom_ticks = max(0, self.boredom_ticks - 3)
+
+        if (
+            not self.playtime.active
+            and self.play_cooldown <= 0
+            and not self.flying
+            and self.action in {Action.IDLE, Action.WALK}
+            and random.random() < ENCOUNTER_CHANCE
+        ):
+            self.playtime_enter = True
+            self.playtime_forced = random.choice([ActivityKind.MOUSE, ActivityKind.DOG])
 
         if self.flying:
             self.vy += GRAVITY
@@ -206,13 +218,16 @@ class BehaviorState:
         self.vy = 0.0
         self.action = Action.IDLE
         self.playtime_enter = False
-        self.playtime.start()
+        forced = self.playtime_forced
+        self.playtime_forced = None
+        self.playtime.start(forced)
 
     def stop_playtime(self) -> None:
         if self.playtime.active:
             self.playtime.stop()
             self.play_cooldown = self._play_cooldown()
         self.playtime_enter = False
+        self.playtime_forced = None
 
     def on_playtime_finished(self) -> None:
         self.playtime.stop()
@@ -246,6 +261,7 @@ class BehaviorState:
         self.boredom_ticks = 0
         self.play_cooldown = random.randint(120, 240)
         self.playtime_enter = False
+        self.playtime_forced = None
 
     def _boredom_threshold(self) -> int:
         if self.context == ForegroundContext.CODING:
