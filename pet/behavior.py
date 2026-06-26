@@ -29,6 +29,7 @@ class BehaviorState:
     action_ticks: int = 0
     context: ForegroundContext = ForegroundContext.UNKNOWN
     context_cooldown: int = 0
+    context_changed: bool = False
     blink_next: int = field(default_factory=lambda: random.randint(20, 60))
     drops: DropManager = field(default_factory=DropManager)
 
@@ -52,9 +53,12 @@ class BehaviorState:
 
         self.context_cooldown -= 1
         if self.context_cooldown <= 0:
-            self.context = detect_context()
-            self._apply_context()
-            self.context_cooldown = 50
+            self.context_cooldown = 12
+            new_context = detect_context()
+            if new_context != self.context:
+                self.context = new_context
+                self.context_changed = True
+                self._on_context_change()
 
         dx = 0
         dy = 0
@@ -125,54 +129,62 @@ class BehaviorState:
         self.blink_next = random.randint(20, 60)
         self.drops = DropManager()
 
-    def _apply_context(self) -> None:
+    def _start_walk(self, length_range: tuple[int, int]) -> None:
+        self.action = Action.WALK
+        self.walk_direction = random.choice([-1, 1])
+        self.facing_left = self.walk_direction < 0
+        self.walk_remaining = random.randint(*length_range)
+
+    def _start_sleep(self, ticks_range: tuple[int, int]) -> None:
+        self.action = Action.SLEEP
+        self.action_ticks = random.randint(*ticks_range)
+
+    def _on_context_change(self) -> None:
+        """React immediately and visibly when the foreground app changes."""
         if self.action == Action.HAPPY:
             return
 
-        if self.context == ForegroundContext.MEETING:
-            if self.action != Action.SLEEP:
-                self.action = Action.SLEEP
-                self.action_ticks = random.randint(150, 260)
-            return
-
         if self.context == ForegroundContext.CODING:
-            if random.random() < 0.12 and self.action == Action.IDLE:
-                self.action = Action.SLEEP
-                self.action_ticks = random.randint(90, 160)
-            return
-
-        if self.context == ForegroundContext.TERMINAL:
-            if random.random() < 0.25 and self.action in {Action.IDLE, Action.SLEEP}:
-                self.action = Action.WALK
-                self.walk_direction = random.choice([-1, 1])
-                self.facing_left = self.walk_direction < 0
-                self.walk_remaining = random.randint(60, 140)
-            return
-
-        if self.context == ForegroundContext.BROWSING:
-            if random.random() < 0.18 and self.action == Action.IDLE:
-                self.action = Action.WALK
-                self.walk_direction = -1 if random.random() < 0.5 else 1
-                self.facing_left = self.walk_direction < 0
-                self.walk_remaining = random.randint(40, 100)
+            # Curl up and doze next to the editor.
+            self._start_sleep((140, 260))
+        elif self.context == ForegroundContext.MEETING:
+            self._start_sleep((200, 320))
+        elif self.context == ForegroundContext.TERMINAL:
+            # Get excited and trot around.
+            self._start_walk((120, 220))
+        elif self.context == ForegroundContext.BROWSING:
+            self._start_walk((80, 160))
+        else:
+            self.action = Action.IDLE
+            self.action_ticks = 0
 
     def _choose_next_action(self) -> None:
         roll = random.random()
-        if self.context == ForegroundContext.MEETING:
-            self.action = Action.SLEEP
-            self.action_ticks = random.randint(150, 260)
+
+        if self.context in {ForegroundContext.CODING, ForegroundContext.MEETING}:
+            # Stay calm and nap while you focus.
+            if roll < 0.7:
+                self._start_sleep((140, 260))
+            else:
+                self.action = Action.IDLE
+                self.action_ticks = 0
+            return
+
+        if self.context == ForegroundContext.TERMINAL:
+            # Energetic: mostly pacing back and forth.
+            if roll < 0.75:
+                self._start_walk((100, 200))
+            else:
+                self.action = Action.IDLE
+                self.action_ticks = 0
             return
 
         if roll < 0.18:
-            self.action = Action.SLEEP
-            self.action_ticks = random.randint(120, 240)
+            self._start_sleep((120, 240))
             return
 
         if roll < 0.55:
-            self.action = Action.WALK
-            self.walk_direction = random.choice([-1, 1])
-            self.facing_left = self.walk_direction < 0
-            self.walk_remaining = random.randint(80, 220)
+            self._start_walk((80, 220))
             return
 
         self.action = Action.IDLE

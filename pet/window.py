@@ -91,11 +91,23 @@ class PetWindow(QWidget):
         self._bubble.raise_()
         self._bubble_timer.start(ms)
 
+    _CONTEXT_BUBBLES = {
+        "coding": "coding… zzz",
+        "terminal": "$ terminal!",
+        "browsing": "browsing~",
+        "meeting": "meeting zzz",
+    }
+
     def _on_tick(self) -> None:
         try:
             dx, dy = self.state.tick()
             if dx or dy:
                 self._move_within_screen(dx, dy)
+            if self.state.context_changed:
+                self.state.context_changed = False
+                bubble = self._CONTEXT_BUBBLES.get(self.state.context_label())
+                if bubble:
+                    self._show_bubble(bubble, 2500)
             self._refresh_sprite()
         except Exception:  # noqa: BLE001 - keep the animation loop alive
             logging.exception("Error in animation tick")

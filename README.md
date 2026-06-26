@@ -15,7 +15,11 @@
 - 自动行为：待机、散步、睡觉
 
 ### 程序员模式
-- **前台窗口感知**：在 Cursor/VS Code 旁打盹，在 Terminal 里兴奋乱跑，开会时睡觉
+- **前台窗口感知**：切换窗口时立即反应并弹出气泡提示
+  - Cursor / VS Code → 蜷起来打盹（`coding… zzz`）
+  - 终端 → 兴奋地来回踱步（`$ terminal!`）
+  - 浏览器 → 慢慢溜达（`browsing~`）
+  - 会议软件 → 睡觉（`meeting zzz`）
 - **全局快捷键** `Ctrl+Alt+P`：显示/隐藏宠物
 
 ### Minecraft 特色
