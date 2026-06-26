@@ -300,16 +300,13 @@ def render_play_frame(
 
     happy = session.celebrate_ticks > 0
     bounce = frame % 4
-    y_offset = 1 if bounce in {1, 3} and not happy else 0
     cat_shift = int(session.cat_offset_x)
-    painter.translate(CAT_X - 48 + cat_shift, int(CAT_Y - 48 + y_offset))
+    painter.translate(CAT_X - 48 + cat_shift, CAT_Y - 48)
 
     _draw_cat_body(painter, palette, bounce, session.facing_left)
     if session.paw_up and not happy:
         paw_x = 15 if not session.facing_left else 7
-        _px(painter, paw_x, 12, palette.fur)
-        _px(painter, paw_x, 11, palette.fur_dark)
-        _px(painter, paw_x + (1 if not session.facing_left else -1), 10, palette.fur_dark)
+        _px(painter, paw_x, 13, palette.fur)
 
     _draw_face(
         painter,
@@ -322,9 +319,6 @@ def render_play_frame(
         _draw_hearts(painter, frame)
 
     painter.resetTransform()
-
-    painter.setPen(QColor("#a5b4fc"))
-    painter.drawText(6, 14, session.activity_label())
 
     if session.activity == ActivityKind.YARN:
         _draw_yarn_ball(painter, session.toy_x, session.toy_y)
@@ -355,7 +349,7 @@ def render_frame(
     painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
 
     bounce = frame % 4
-    y_offset = 1 if pose in {Pose.IDLE, Pose.WALK, Pose.HAPPY} and bounce in {1, 3} else 0
+    y_offset = 1 if pose == Pose.HAPPY and bounce in {1, 3} else 0
     painter.translate(0, y_offset * SCALE)
 
     if pose == Pose.SLEEP:

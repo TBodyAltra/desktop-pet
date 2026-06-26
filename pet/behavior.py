@@ -103,7 +103,7 @@ class BehaviorState:
         self.action = Action.CHASE
         self.chase_dx = 1 if dx > 0 else -1
         self.facing_left = self.chase_dx < 0
-        self.chase_remaining = min(abs(dx), 160)
+        self.chase_remaining = min(abs(dx), 80)
 
     def tick(self) -> tuple[int, int]:
         if self.paused:
@@ -143,7 +143,7 @@ class BehaviorState:
             return int(round(self.vx)), int(round(self.vy))
 
         if self.action == Action.CHASE:
-            step = 3 * self.chase_dx
+            step = 1 * self.chase_dx
             self.chase_remaining -= abs(step)
             if self.chase_remaining <= 0:
                 self.action = Action.IDLE
@@ -168,7 +168,7 @@ class BehaviorState:
             return dx, dy
 
         if self.action == Action.WALK:
-            step = 2 * self.walk_direction
+            step = 1 * self.walk_direction
             dx = step
             self.walk_remaining -= abs(step)
             if self.walk_remaining <= 0:
@@ -186,7 +186,7 @@ class BehaviorState:
                 self.blink_next = self.frame + random.randint(40, 100)
             return dx, dy
 
-        if self.frame % 180 == 0:
+        if self.frame % 240 == 0:
             self._choose_next_action()
 
         return dx, dy
@@ -283,17 +283,17 @@ class BehaviorState:
         return True
 
     def _choose_coding_action(self) -> None:
-        """Cat-like behavior while you code: prowl, brief naps, then solo play."""
+        """Lazy cat while you code: mostly idle or a slow prowl."""
         roll = random.random()
-        if roll < 0.32:
-            self._start_walk((60, 150))
-        elif roll < 0.42:
-            self._start_sleep((45, 85))
-        elif roll < 0.52:
-            self.boredom_ticks = max(self.boredom_ticks, self._boredom_threshold() - 30)
+        if roll < 0.45:
             self.action = Action.IDLE
             self.action_ticks = 0
+        elif roll < 0.78:
+            self._start_walk((100, 220))
+        elif roll < 0.9:
+            self._start_sleep((50, 90))
         else:
+            self.boredom_ticks = max(self.boredom_ticks, self._boredom_threshold() - 40)
             self.action = Action.IDLE
             self.action_ticks = 0
 
@@ -314,18 +314,17 @@ class BehaviorState:
 
         if self.context == ForegroundContext.CODING:
             roll = random.random()
-            if roll < 0.4:
-                self._start_walk((80, 150))
-            elif roll < 0.55:
-                self._start_sleep((40, 75))
+            if roll < 0.5:
+                self._start_walk((90, 180))
+            elif roll < 0.7:
+                self._start_sleep((45, 80))
             else:
                 self.action = Action.IDLE
                 self.action_ticks = 0
         elif self.context == ForegroundContext.MEETING:
             self._start_sleep((200, 320))
         elif self.context == ForegroundContext.TERMINAL:
-            # Get excited and trot around.
-            self._start_walk((120, 220))
+            self._start_walk((80, 160))
         elif self.context == ForegroundContext.BROWSING:
             self._start_walk((80, 160))
         else:
@@ -348,20 +347,19 @@ class BehaviorState:
             return
 
         if self.context == ForegroundContext.TERMINAL:
-            # Energetic: mostly pacing back and forth.
-            if roll < 0.75:
-                self._start_walk((100, 200))
+            if roll < 0.55:
+                self._start_walk((80, 160))
             else:
                 self.action = Action.IDLE
                 self.action_ticks = 0
             return
 
-        if roll < 0.18:
-            self._start_sleep((120, 240))
+        if roll < 0.22:
+            self._start_sleep((100, 200))
             return
 
-        if roll < 0.55:
-            self._start_walk((80, 220))
+        if roll < 0.62:
+            self._start_walk((100, 260))
             return
 
         self.action = Action.IDLE

@@ -17,8 +17,8 @@ from pet.playtime import PLAY_H, PLAY_W
 
 
 class PetWindow(QWidget):
-    CHASE_RANGE = 220
-    CHASE_COOLDOWN_TICKS = 18
+    CHASE_RANGE = 160
+    CHASE_COOLDOWN_TICKS = 90
 
     def __init__(self) -> None:
         super().__init__()
@@ -111,7 +111,7 @@ class PetWindow(QWidget):
         offset_x = cursor.x() - pet_center.x()
         offset_y = cursor.y() - pet_center.y()
 
-        if abs(offset_x) < 50 or abs(offset_x) > self.CHASE_RANGE or abs(offset_y) > 120:
+        if abs(offset_x) < 30 or abs(offset_x) > self.CHASE_RANGE or abs(offset_y) > 80:
             return
 
         self.state.chase_toward(offset_x)
