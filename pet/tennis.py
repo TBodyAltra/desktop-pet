@@ -93,18 +93,26 @@ class TennisGame:
         elif self.ball_vx > 0 and self.ball_x >= COURT_W - BALL_R - 4:
             self._on_miss("user")
 
+        return 0, cat_dy
+
     def try_hit(self, click_x: float, click_y: float) -> bool:
         if not self.active or self.serving or self.celebrate_ticks > 0:
             return False
-        if self.ball_vx <= 0 or self.ball_x < NET_X:
+        if self.ball_vx <= 0 or self.ball_x < NET_X - 16:
             return False
-        if math.hypot(click_x - self.ball_x, click_y - self.ball_y) > HIT_RADIUS + 8:
+        if math.hypot(click_x - self.ball_x, click_y - self.ball_y) > HIT_RADIUS + 10:
             return False
 
-        angle = math.atan2(click_y - self.cat_y, CAT_X - click_x)
+        target_x = CAT_X + 14
+        target_y = self.cat_y + (click_y - self.ball_y) * 0.75
+        target_y = max(20.0, min(COURT_H - 20.0, target_y))
+
+        dx = target_x - self.ball_x
+        dy = target_y - self.ball_y
+        length = math.hypot(dx, dy) or 1.0
         speed = BALL_SPEED + min(self.rally * 0.08, 2.0)
-        self.ball_vx = -math.cos(angle) * speed
-        self.ball_vy = math.sin(angle) * speed
+        self.ball_vx = dx / length * speed
+        self.ball_vy = dy / length * speed
         self.ball_vy = max(-MAX_BALL_VY, min(MAX_BALL_VY, self.ball_vy))
         self.facing_left = True
         self.rally += 1
