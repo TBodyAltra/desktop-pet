@@ -194,19 +194,51 @@ def _draw_dizzy_face(painter: QPainter, palette: Palette, frame: int, facing_lef
         _px(painter, 11 + side * 4, y, palette.whisker)
 
 
-def _draw_parachute(painter: QPainter, palette: Palette) -> None:
-    canopy = QColor("#fb7185")
-    accent = QColor("#fda4af")
-    string_color = QColor("#78716c")
-    painter.setPen(Qt.PenStyle.NoPen)
-    painter.setBrush(canopy)
-    painter.drawEllipse(8 * SCALE, 0, 80, 28)
-    painter.setBrush(accent)
-    painter.drawEllipse(20 * SCALE, 4, 24, 10)
-    painter.drawEllipse(52 * SCALE, 4, 24, 10)
-    painter.setPen(string_color)
-    for x in (9, 12, 15, 18):
-        painter.drawLine(x * SCALE + 8, 24, x * SCALE + 4, 6 * SCALE)
+def _draw_parachute_canopy(painter: QPainter) -> None:
+    """Dome canopy with radial gores, drawn in grid coords above the cat."""
+    rim = QColor("#ea580c")
+    panel_a = QColor("#fb923c")
+    panel_b = QColor("#f97316")
+    vent = QColor("#fff7ed")
+    outline = QColor("#9a3412")
+
+    rows = (
+        (1, 10, 12),
+        (2, 9, 13),
+        (3, 8, 14),
+        (4, 7, 15),
+        (5, 6, 16),
+        (6, 5, 17),
+    )
+    gores = (8, 11, 14)
+
+    for y, x0, x1 in rows:
+        for x in range(x0, x1 + 1):
+            if x in gores:
+                _px(painter, x, y, rim)
+            elif (x + y) % 2 == 0:
+                _px(painter, x, y, panel_a)
+            else:
+                _px(painter, x, y, panel_b)
+
+    _px(painter, 10, 6, outline)
+    _px(painter, 12, 6, outline)
+    _px(painter, 11, 1, vent)
+    _px(painter, 10, 2, vent)
+    _px(painter, 12, 2, vent)
+
+
+def _draw_parachute_strings(painter: QPainter) -> None:
+    """Suspension lines from canopy rim down to the cat harness."""
+    line = QColor("#44403c")
+    painter.setPen(line)
+    anchors = ((6, 6), (8, 6), (11, 6), (14, 6), (17, 6))
+    harness = ((8, 10), (10, 10), (11, 10), (12, 10), (14, 10))
+    for (sx, sy), (hx, hy) in zip(anchors, harness):
+        painter.drawLine(sx * SCALE + 2, sy * SCALE + 4, hx * SCALE + 2, hy * SCALE)
+    harness_color = QColor("#57534e")
+    for x in (10, 11, 12):
+        _px(painter, x, 9, harness_color)
 
 
 def _draw_dizzy_stars(painter: QPainter, frame: int) -> None:
@@ -420,8 +452,9 @@ def render_frame(
         _draw_dizzy_face(painter, palette, frame, facing_left)
         _draw_dizzy_stars(painter, frame)
     elif pose == Pose.PARACHUTE:
-        _draw_parachute(painter, palette)
+        _draw_parachute_canopy(painter)
         _draw_cat_body(painter, palette, bounce, facing_left)
+        _draw_parachute_strings(painter)
         _draw_face(
             painter,
             palette,
