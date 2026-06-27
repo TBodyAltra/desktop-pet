@@ -25,6 +25,7 @@ class Pose(Enum):
     SLEEP = auto()
     PLAY = auto()
     DIZZY = auto()
+    PARACHUTE = auto()
 
 
 class CatVariant(Enum):
@@ -191,6 +192,21 @@ def _draw_dizzy_face(painter: QPainter, palette: Palette, frame: int, facing_lef
     for y in (9, 10):
         _px(painter, 11 + side * 3, y, palette.whisker)
         _px(painter, 11 + side * 4, y, palette.whisker)
+
+
+def _draw_parachute(painter: QPainter, palette: Palette) -> None:
+    canopy = QColor("#fb7185")
+    accent = QColor("#fda4af")
+    string_color = QColor("#78716c")
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setBrush(canopy)
+    painter.drawEllipse(8 * SCALE, 0, 80, 28)
+    painter.setBrush(accent)
+    painter.drawEllipse(20 * SCALE, 4, 24, 10)
+    painter.drawEllipse(52 * SCALE, 4, 24, 10)
+    painter.setPen(string_color)
+    for x in (9, 12, 15, 18):
+        painter.drawLine(x * SCALE + 8, 24, x * SCALE + 4, 6 * SCALE)
 
 
 def _draw_dizzy_stars(painter: QPainter, frame: int) -> None:
@@ -403,6 +419,16 @@ def render_frame(
         _draw_cat_body(painter, palette, bounce, facing_left)
         _draw_dizzy_face(painter, palette, frame, facing_left)
         _draw_dizzy_stars(painter, frame)
+    elif pose == Pose.PARACHUTE:
+        _draw_parachute(painter, palette)
+        _draw_cat_body(painter, palette, bounce, facing_left)
+        _draw_face(
+            painter,
+            palette,
+            eyes_open=True,
+            happy=False,
+            facing_left=facing_left,
+        )
     else:
         _draw_cat_body(painter, palette, bounce, facing_left)
         _draw_face(

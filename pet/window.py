@@ -151,6 +151,9 @@ class PetWindow(QWidget):
 
         self.move(new_x, new_y)
 
+        if self.state.flying:
+            self.state.update_flight(new_y)
+
         if not self.state.flying:
             return
 

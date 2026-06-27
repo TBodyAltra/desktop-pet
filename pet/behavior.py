@@ -24,6 +24,8 @@ GRAVITY = 1.4
 AIR_FRICTION = 0.99
 BOUNCE_DAMPING = 0.55
 FLING_MIN_SPEED = 6.0
+PARACHUTE_FALL_PX = 90
+PARACHUTE_DESCENT = 1.15
 BOREDOM_THRESHOLD = 280
 BOREDOM_THRESHOLD_CODING = 160
 PLAY_COOLDOWN = 360
@@ -57,6 +59,8 @@ class BehaviorState:
     playtime_enter: bool = False
     playtime_forced: ActivityKind | None = None
     fling_speed: float = 0.0
+    parachute_open: bool = False
+    flight_peak_y: int | None = None
 
     def pose(self) -> Pose:
         if self.playtime.active:
@@ -64,7 +68,7 @@ class BehaviorState:
                 return Pose.HAPPY
             return Pose.PLAY
         if self.flying:
-            return Pose.BLINK
+            return Pose.PARACHUTE if self.parachute_open else Pose.BLINK
         if self.action == Action.DIZZY:
             return Pose.DIZZY
         if self.action == Action.SLEEP:
@@ -82,6 +86,8 @@ class BehaviorState:
         self.boredom_ticks = 0
         self.fling_speed = (vx * vx + vy * vy) ** 0.5
         self.flying = True
+        self.parachute_open = False
+        self.flight_peak_y = None
         self.vx = vx
         self.vy = vy
         self.action = Action.IDLE
@@ -92,12 +98,33 @@ class BehaviorState:
     def bounce_y(self) -> None:
         self.vy = -self.vy * BOUNCE_DAMPING
 
+    def update_flight(self, window_y: int) -> None:
+        if not self.flying:
+            return
+        if self.flight_peak_y is None:
+            self.flight_peak_y = window_y
+        else:
+            self.flight_peak_y = min(self.flight_peak_y, window_y)
+
+        fall_distance = window_y - self.flight_peak_y
+        if not self.parachute_open and fall_distance >= PARACHUTE_FALL_PX and self.vy > 1.2:
+            self.parachute_open = True
+
+        if self.parachute_open and self.vy > PARACHUTE_DESCENT:
+            self.vy = PARACHUTE_DESCENT
+
     def land(self) -> None:
+        landed_with_chute = self.parachute_open
         self.flying = False
         self.vx = 0.0
         self.vy = 0.0
+        self.parachute_open = False
+        self.flight_peak_y = None
         self.action = Action.DIZZY
-        self.action_ticks = int(40 + min(self.fling_speed * 2.8, 75))
+        if landed_with_chute:
+            self.action_ticks = int(24 + min(self.fling_speed * 1.2, 40))
+        else:
+            self.action_ticks = int(40 + min(self.fling_speed * 2.8, 75))
 
     def chase_toward(self, dx: int) -> None:
         """Start trotting toward a horizontal offset (cursor direction)."""
@@ -143,7 +170,13 @@ class BehaviorState:
             self.playtime_forced = random.choice([ActivityKind.MOUSE, ActivityKind.DOG])
 
         if self.flying:
-            self.vy += GRAVITY
+            if self.parachute_open:
+                if self.vy > PARACHUTE_DESCENT:
+                    self.vy = PARACHUTE_DESCENT
+                elif self.vy < 0:
+                    self.vy += GRAVITY * 0.35
+            else:
+                self.vy += GRAVITY
             self.vx *= AIR_FRICTION
             return int(round(self.vx)), int(round(self.vy))
 
@@ -267,6 +300,9 @@ class BehaviorState:
         self.flying = False
         self.vx = 0.0
         self.vy = 0.0
+        self.parachute_open = False
+        self.flight_peak_y = None
+        self.fling_speed = 0.0
         self.chase_remaining = 0
         self.blink_next = random.randint(20, 60)
         self.drops = DropManager()
